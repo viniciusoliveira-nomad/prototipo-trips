@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nomad Trips - Booking Engine Beta 2.2</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    
+    // --- SISTEMA DE ÍCONES INLINE ---
+    const createIcon = (paths) => {
+      return function IconComponent({ size = 24, color = "currentColor", className = "", ...props }) {
+        return (
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width={size} 
+            height={size} 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke={color} 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            className={className} 
+            {...props} 
+            dangerouslySetInnerHTML={{ __html: paths }} 
+          />
+        );
+      }
+    };
+
+    const Search = createIcon('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>');
+    const Calendar = createIcon('<rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>');
+    const Users = createIcon('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>');
+    const MapPin = createIcon('<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>');
+    const Star = createIcon('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>');
+    const Coffee = createIcon('<path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/>');
+    const Wifi = createIcon('<path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" x2="12.01" y1="20" y2="20"/>');
+    const ShieldCheck = createIcon('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>');
+    const CreditCard = createIcon('<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>');
+    const CheckCircle = createIcon('<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>');
+    const ArrowRight = createIcon('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>');
+    const Filter = createIcon('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>');
+    const Briefcase = createIcon('<rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>');
+    const ChevronDown = createIcon('<path d="m6 9 6 6 6-6"/>');
+    const Check = createIcon('<path d="M20 6 9 17l-5-5"/>');
+    const Menu = createIcon('<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>');
+    const Coins = createIcon('<circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/>');
+    const Globe = createIcon('<circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/>');
+
+    // --- DESIGN SYSTEM CONSTANTS ---
+    const COLORS = {
+      primary: '#ffce00',     // Destaques/Ícones principais
+      cta: '#8d7041',         // Fundo de Botões (Calls to Action)
+      darkText: '#30170a',    // Tipografia principal/Fundos claros
+      lightText: '#f7f9f7',   // Textos sobre fundos escuros/botões
+      tertiary: '#09247c'     // Elementos secundários, bordas, badges
+    };
+
+    // --- LÓGICA DO ECOSSISTEMA NOMAD ---
+    const NOMAD_MULTIPLIERS = {
+      usdRate: 5.05, // Taxa de conversão BRL -> USD para o protótipo
+      pointsCostPerBrl: 50, 
+      pointsEarnedPerBrl: 2, 
+      explorerDiscount: 0.10 // 10% de desconto
+    };
+
+    const HOTELS_DATA = [
+      {
+        id: 1,
+        name: 'Copacabana Palace Premium',
+        price: 3845.00, // Preço base em BRL
+        rating: 9.4,
+        reviews: 342,
+        stars: 5,
+        tag: 'Mais Vendido',
+        location: 'Beira-mar, a 1.2km do centro',
+        image: '1566073771259-6a8506099945'
+      },
+      {
+        id: 2,
+        name: 'Boutique Hotel Ipanema',
+        price: 2950.00,
+        rating: 8.9,
+        reviews: 128,
+        stars: 4,
+        tag: null,
+        location: 'Ipanema, a 2km do centro',
+        image: '1582719478250-c89cae4dc85b'
+      },
+      {
+        id: 3,
+        name: 'Leblon Oceanview Suites',
+        price: 3120.00,
+        rating: 9.1,
+        reviews: 256,
+        stars: 5,
+        tag: null,
+        location: 'Leblon, a 3km do centro',
+        image: '1542314831-068cd1dbfeeb'
+      }
+    ];
+
+    const App = () => {
+      const [view, setView] = useState('home'); 
+      const [loading, setLoading] = useState(false);
+      const [destination, setDestination] = useState('Rio de Janeiro, Brasil');
+      const [showAutocomplete, setShowAutocomplete] = useState(false);
+      const [showMobileFilters, setShowMobileFilters] = useState(false);
+
+      const [adults, setAdults] = useState(2);
+      const [childrenCount, setChildrenCount] = useState(1);
+      const [showPaxDropdown, setShowPaxDropdown] = useState(false);
+      const [sortBy, setSortBy] = useState('recommended');
+
+      // --- ESTADOS: ECOSSISTEMA NOMAD ---
+      const [currency, setCurrency] = useState('USD'); // Default para USD para focar na V2.2
+      const [hasNomadExplorer, setHasNomadExplorer] = useState(false);
+
+      const navigateTo = (targetView, delay = 0) => {
+        if (delay > 0) {
+          setLoading(true);
+          setTimeout(() => {
+            setView(targetView);
+            setLoading(false);
+          }, delay);
+        } else {
+          setView(targetView);
+        }
+        window.scrollTo(0, 0);
+      };
+
+      // Funções de formatação de preço baseadas na moeda selecionada
+      const getFinalPriceBrl = (basePriceBrl) => {
+        return hasNomadExplorer ? basePriceBrl * (1 - NOMAD_MULTIPLIERS.explorerDiscount) : basePriceBrl;
+      };
+
+      const formatCurrency = (amountBrl, targetCurrency) => {
+        if (targetCurrency === 'PTS') {
+          return Math.floor(amountBrl * NOMAD_MULTIPLIERS.pointsCostPerBrl).toLocaleString('pt-BR') + ' pts';
+        }
+        if (targetCurrency === 'USD') {
+          const amountUsd = amountBrl / NOMAD_MULTIPLIERS.usdRate;
+          return 'US$ ' + amountUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        return 'R$ ' + amountBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      };
+
+      const getPointsEarned = (finalPriceBrl) => {
+        return Math.floor(finalPriceBrl * NOMAD_MULTIPLIERS.pointsEarnedPerBrl);
+      };
+
+      const Layout = ({ children }) => (
+        <div className="min-h-screen bg-[#fcfcfc] font-sans flex flex-col" style={{ color: COLORS.darkText }}>
+          <nav className="sticky top-0 z-50 bg-white shadow-sm border-b" style={{ borderColor: `${COLORS.tertiary}20` }}>
+            <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
+              
+              <div className="flex items-center cursor-pointer" onClick={() => navigateTo('home')}>
+                <img 
+                  src="https://cdn5.travelconline.com/images/fit-in/2000x0/filters:quality(75):strip_metadata():format(webp)/https%3A%2F%2Ftr2storage.blob.core.windows.net%2Fagencylogos%2FMhktqVh2LZp2Lpqnwi-PLLZAkjmbuiLFUp.png" 
+                  alt="Nomad Trips Logo" 
+                  className="h-10 md:h-12 object-contain"
+                />
+              </div>
+
+              <div className="flex items-center gap-4 md:gap-8">
+                <button 
+                  onClick={() => navigateTo('my-bookings')}
+                  className="hidden md:flex items-center gap-2 font-semibold hover:opacity-70 transition-opacity"
+                >
+                  <Briefcase size={20} color={COLORS.tertiary} />
+                  <span>Minhas viagens</span>
+                </button>
+                
+                <button 
+                  className="hidden md:block px-6 py-2 rounded-full font-bold transition-transform hover:scale-105" 
+                  style={{ backgroundColor: COLORS.cta, color: COLORS.lightText }}
+                >
+                  Entrar
+                </button>
+                <button className="md:hidden p-2 opacity-70">
+                  <Menu size={24} color={COLORS.darkText} />
+                </button>
+              </div>
+            </div>
+          </nav>
+          
+          <main className="flex-grow">
+            {children}
+          </main>
+          
+          <footer className="bg-white border-t py-8 text-center text-sm opacity-70 mt-auto">
+            <p>&copy; 2026 Nomad Trips. Todos os direitos reservados.</p>
+          </footer>
+        </div>
+      );
+
+      const HomeView = () => (
+        <div className="relative">
+          <div className="min-h-[550px] py-16 md:py-0 flex items-center relative bg-slate-50 border-b border-gray-200">
+            <div className="relative max-w-7xl mx-auto px-4 w-full">
+              
+              <h1 className="text-4xl md:text-6xl font-black mb-4 md:mb-6 max-w-2xl leading-tight" style={{ color: COLORS.darkText }}>
+                Sua próxima experiência <span style={{ color: COLORS.cta }}>Premium</span> começa aqui.
+              </h1>
+              <p className="text-base md:text-lg mb-8 md:mb-10 max-w-xl opacity-80" style={{ color: COLORS.darkText }}>
+                Descubra os melhores hotéis com opções de pagamento globais exclusivas.
+              </p>
+              
+              <div className="bg-white p-5 md:p-6 rounded-2xl shadow-xl border border-gray-100 relative z-10">
+                
+                {/* Topo da Busca: Seletor de Moeda e Cartão Nomad */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-gray-100 pb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
+                    <span className="text-sm font-bold text-[#30170a] opacity-70">Exibir preços em:</span>
+                    <div className="flex items-center bg-gray-100 p-1 rounded-lg border border-gray-200 w-full sm:w-auto">
+                      <button 
+                        onClick={() => setCurrency('USD')}
+                        className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all ${currency === 'USD' ? 'bg-white shadow text-[#09247c]' : 'text-gray-500 hover:text-gray-700'}`}
+                      >
+                        Dólar (USD)
+                      </button>
+                      <button 
+                        onClick={() => setCurrency('BRL')}
+                        className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all ${currency === 'BRL' ? 'bg-white shadow text-[#09247c]' : 'text-gray-500 hover:text-gray-700'}`}
+                      >
+                        Reais (BRL)
+                      </button>
+                      <button 
+                        onClick={() => setCurrency('PTS')}
+                        className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all flex items-center justify-center gap-1 ${currency === 'PTS' ? 'bg-[#09247c] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                      >
+                        <Coins size={14} /> Pontos
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-colors border-2 flex-shrink-0 ${hasNomadExplorer ? 'bg-[#09247c] border-[#09247c]' : 'bg-white border-gray-300'}`}
+                      onClick={() => setHasNomadExplorer(!hasNomadExplorer)}
+                    >
+                      {hasNomadExplorer && <Check size={16} color="white" strokeWidth={3} />}
+                    </div>
+                    <label className="text-[#30170a] font-medium text-sm flex items-center flex-wrap gap-2 cursor-pointer select-none" onClick={() => setHasNomadExplorer(!hasNomadExplorer)}>
+                      Tenho o cartão Nomad Explorer 
+                      <span className="bg-[#ffce00] text-[#30170a] text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-tight shadow-sm">
+                        Descontos Ativos
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex flex-col md:flex-row gap-5">
+                  <div className="flex flex-col flex-1 border-b md:border-b-0 md:border-r border-gray-200 pb-4 md:pb-0 md:pr-4 relative">
+                    <label className="text-xs font-bold uppercase mb-1 opacity-60">Destino ou Hotel</label>
+                    <div className="flex items-center gap-2">
+                      <MapPin size={20} color={COLORS.primary} className="flex-shrink-0" />
+                      <input 
+                        type="text" 
+                        className="w-full outline-none text-base md:text-lg font-medium bg-transparent truncate" 
+                        value={destination}
+                        onChange={(e) => {
+                          setDestination(e.target.value);
+                          setShowAutocomplete(true);
+                        }}
+                        onFocus={() => setShowAutocomplete(true)}
+                        onBlur={() => setTimeout(() => setShowAutocomplete(false), 200)}
+                      />
+                    </div>
+                    
+                    {showAutocomplete && (
+                      <div className="absolute top-full left-0 mt-4 w-full md:w-80 bg-white border shadow-xl rounded-xl z-50 overflow-hidden">
+                        <div className="p-2 text-xs font-bold uppercase text-gray-400 bg-gray-50">Sugestões Nacionais</div>
+                        <button 
+                          onMouseDown={() => { setDestination('Rio de Janeiro, Brasil'); setShowAutocomplete(false); }}
+                          className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b"
+                        >
+                          <MapPin size={16} color={COLORS.tertiary} />
+                          <div><p className="font-bold text-sm">Rio de Janeiro</p><p className="text-xs text-gray-500">Brasil</p></div>
+                        </button>
+                        <button 
+                          onMouseDown={() => { setDestination('Gramado, RS'); setShowAutocomplete(false); }}
+                          className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b"
+                        >
+                          <MapPin size={16} color={COLORS.tertiary} />
+                          <div><p className="font-bold text-sm">Gramado</p><p className="text-xs text-gray-500">Rio Grande do Sul, Brasil</p></div>
+                        </button>
+                        <button 
+                          onMouseDown={() => { setDestination('Orlando, EUA'); setShowAutocomplete(false); }}
+                          className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3"
+                        >
+                          <Globe size={16} color={COLORS.tertiary} />
+                          <div><p className="font-bold text-sm">Orlando</p><p className="text-xs text-gray-500">Flórida, Estados Unidos</p></div>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col flex-1 border-b md:border-b-0 md:border-r border-gray-200 pb-4 md:pb-0 md:pr-4">
+                    <label className="text-xs font-bold uppercase mb-1 opacity-60">Período da Viagem</label>
+                    <div className="flex items-center gap-2 cursor-pointer">
+                      <Calendar size={20} color={COLORS.primary} className="flex-shrink-0" />
+                      <span className="text-base md:text-lg font-medium whitespace-nowrap">12 Out - 15 Out</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col flex-1 pb-2 md:pb-0 md:pr-4 relative">
+                    <label className="text-xs font-bold uppercase mb-1 opacity-60">Hóspedes e Quartos</label>
+                    <div 
+                      className="flex items-center justify-between cursor-pointer"
+                      onClick={() => setShowPaxDropdown(!showPaxDropdown)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Users size={20} color={COLORS.primary} className="flex-shrink-0" />
+                        <span className="text-base md:text-lg font-medium truncate">
+                          {adults} Adulto{adults > 1 ? 's' : ''}{childrenCount > 0 ? `, ${childrenCount} Criança${childrenCount > 1 ? 's' : ''}` : ''}
+                        </span>
+                      </div>
+                      <ChevronDown size={16} className={`opacity-50 transition-transform ${showPaxDropdown ? 'rotate-180' : ''}`} />
+                    </div>
+                    
+                    {showPaxDropdown && (
+                      <div className="absolute top-full left-0 md:left-auto md:right-0 mt-4 w-full md:w-72 bg-white border shadow-2xl rounded-xl z-50 p-5">
+                        <div className="flex justify-between items-center mb-5">
+                          <div>
+                            <span className="font-bold text-base block">Adultos</span>
+                            <span className="text-xs text-gray-500">12 anos ou mais</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <button onClick={() => setAdults(Math.max(1, adults - 1))} className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-lg text-[#09247c] hover:bg-gray-50">-</button>
+                            <span className="font-bold text-lg w-4 text-center">{adults}</span>
+                            <button onClick={() => setAdults(adults + 1)} className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-lg text-[#09247c] hover:bg-gray-50">+</button>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center mb-6">
+                          <div>
+                            <span className="font-bold text-base block">Crianças</span>
+                            <span className="text-xs text-gray-500">Até 11 anos</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <button onClick={() => setChildrenCount(Math.max(0, childrenCount - 1))} className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-lg text-[#09247c] hover:bg-gray-50">-</button>
+                            <span className="font-bold text-lg w-4 text-center">{childrenCount}</span>
+                            <button onClick={() => setChildrenCount(childrenCount + 1)} className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-lg text-[#09247c] hover:bg-gray-50">+</button>
+                          </div>
+                        </div>
+                        <button onClick={() => setShowPaxDropdown(false)} className="w-full py-3 rounded-lg font-bold transition-all hover:brightness-110" style={{ backgroundColor: COLORS.tertiary, color: COLORS.lightText }}>
+                          Aplicar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <button 
+                    onClick={() => navigateTo('list', 800)}
+                    className="flex items-center justify-center gap-2 py-4 md:py-0 md:px-8 rounded-xl font-bold text-lg md:text-xl transition-all hover:brightness-110 shadow-lg mt-2 md:mt-0"
+                    style={{ backgroundColor: COLORS.cta, color: COLORS.lightText }}
+                  >
+                    <Search size={22} /> Buscar
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      );
+
+      const ListView = () => {
+        const sortedHotels = [...HOTELS_DATA].sort((a, b) => {
+          const priceA = getFinalPriceBrl(a.price);
+          const priceB = getFinalPriceBrl(b.price);
+          if (sortBy === 'price_asc') return priceA - priceB;
+          if (sortBy === 'rating_desc') return b.rating - a.rating;
+          return a.id - b.id;
+        });
+
+        return (
+          <div className="max-w-7xl mx-auto px-4 py-6 md:py-10 flex flex-col lg:flex-row gap-6 md:gap-8">
+            <button 
+              onClick={() => setShowMobileFilters(!showMobileFilters)}
+              className="lg:hidden w-full bg-white p-4 rounded-xl border flex items-center justify-center gap-2 font-bold shadow-sm"
+            >
+              <Filter size={18} /> {showMobileFilters ? 'Ocultar Filtros' : 'Filtrar Resultados'}
+            </button>
+
+            <aside className={`w-full lg:w-64 flex-shrink-0 ${showMobileFilters ? 'block' : 'hidden'} lg:block`}>
+              <div className="lg:sticky lg:top-28 bg-white p-6 rounded-2xl shadow-sm border space-y-8">
+                <h3 className="font-bold text-xl mb-4 flex items-center gap-2 border-b pb-4"><Filter size={18} /> Filtros</h3>
+                
+                <div>
+                  <p className="font-bold mb-3">Categoria (Estrelas)</p>
+                  {[5, 4, 3, 2].map(stars => (
+                    <label key={stars} className="flex items-center gap-3 mb-3 cursor-pointer group">
+                      <div className="relative flex items-center justify-center w-5 h-5 rounded border-2 border-gray-300 group-hover:border-[#09247c]">
+                        <input type="checkbox" className="peer absolute opacity-0 w-full h-full cursor-pointer" defaultChecked={stars >= 4} />
+                        <Check size={14} strokeWidth={4} className="opacity-0 peer-checked:opacity-100 text-[#09247c]" />
+                      </div>
+                      <div className="flex text-yellow-400 gap-1">
+                        {[...Array(stars)].map((_, idx) => (
+                          <Star key={idx} size={14} fill="currentColor" />
+                        ))}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </aside>
+
+            <div className="flex-1 space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-xl border shadow-sm gap-4">
+                <p className="font-medium"><strong>{sortedHotels.length}</strong> acomodações encontradas em <b>{destination}</b></p>
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <span className="text-sm font-bold opacity-70 hidden sm:block">Ordenar por:</span>
+                  <select 
+                    className="border p-2 rounded-lg outline-none font-medium bg-gray-50 w-full sm:w-auto" 
+                    style={{ borderColor: `${COLORS.tertiary}40` }}
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                  >
+                    <option value="recommended">Recomendados</option>
+                    <option value="price_asc">Preço (menor primeiro)</option>
+                    <option value="rating_desc">Avaliação dos hóspedes</option>
+                  </select>
+                </div>
+              </div>
+
+              {sortedHotels.map(hotel => {
+                const finalPriceBrl = getFinalPriceBrl(hotel.price);
+                const displayPrice = formatCurrency(finalPriceBrl, currency);
+                const pointsEarned = getPointsEarned(finalPriceBrl);
+
+                return (
+                  <div key={hotel.id} className="bg-white rounded-2xl shadow-sm border hover:shadow-lg transition-shadow duration-300 flex flex-col md:flex-row overflow-hidden">
+                    <div className="w-full md:w-72 h-56 md:h-auto bg-cover bg-center relative" style={{ backgroundImage: `url(https://images.unsplash.com/photo-${hotel.image}?auto=format&fit=crop&q=80&w=800)` }}>
+                      {hotel.tag && (
+                        <span className="absolute top-4 left-4 text-xs font-bold uppercase px-3 py-1 rounded bg-[#09247c] text-white shadow-md">
+                          {hotel.tag}
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 p-5 md:p-6 flex flex-col justify-between">
+                      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                        <div>
+                          <h2 className="text-xl md:text-2xl font-bold mb-1 hover:underline cursor-pointer" onClick={() => navigateTo('details')}>
+                            {hotel.name}
+                          </h2>
+                          <div className="flex text-yellow-400 mb-2 gap-1">
+                            {[...Array(hotel.stars)].map((_, idx) => (
+                              <Star key={idx} size={14} fill="currentColor" />
+                            ))}
+                          </div>
+                          <p className="text-sm opacity-70 flex items-center gap-1"><MapPin size={14} /> {hotel.location}</p>
+                        </div>
+                        
+                        <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto mt-2 sm:mt-0">
+                          <div className="flex items-center gap-2 bg-[#09247c] text-white px-2 py-1 rounded-lg">
+                            <span className="font-bold">{hotel.rating.toFixed(1)}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-xs font-bold mt-1 block" style={{ color: COLORS.tertiary }}>
+                              {hotel.rating >= 9 ? 'Excepcional' : 'Fabuloso'}
+                            </span>
+                            <span className="text-xs text-gray-400">{hotel.reviews} avaliações</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mt-6 gap-4 border-t sm:border-t-0 pt-4 sm:pt-0">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex flex-wrap gap-2 text-xs font-bold">
+                            <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-green-700"><Wifi size={14} /> Wi-Fi Grátis</span>
+                            <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded"><Coffee size={14} /> Café da manhã</span>
+                          </div>
+                          
+                          {/* Tag de Acúmulo de Pontos (Disponível p/ USD e BRL) */}
+                          {(currency === 'BRL' || currency === 'USD') && (
+                            <div className="mt-2 inline-flex items-center gap-1.5 bg-[#f5f8ff] text-[#09247c] px-2 py-1 rounded-md text-xs font-bold border border-[#e0e7ff] self-start">
+                              <Coins size={14} />
+                              Acumule +{pointsEarned.toLocaleString('pt-BR')} pontos
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="text-left sm:text-right w-full sm:w-auto">
+                          <p className="text-xs opacity-60 mb-1">Preço para 3 noites, {adults} adulto{adults > 1 ? 's' : ''}{childrenCount > 0 ? `, ${childrenCount} criança${childrenCount > 1 ? 's' : ''}` : ''}</p>
+                          
+                          {hasNomadExplorer && (currency === 'BRL' || currency === 'USD') && (
+                            <p className="text-sm text-gray-400 line-through font-bold">De {formatCurrency(hotel.price, currency)}</p>
+                          )}
+
+                          <p className="text-2xl md:text-3xl font-black mb-3 flex items-center sm:justify-end gap-2" style={{ color: currency === 'PTS' ? COLORS.tertiary : COLORS.cta }}>
+                            {currency === 'PTS' && <Coins size={24}/>} 
+                            {displayPrice}
+                          </p>
+
+                          <button 
+                            onClick={() => navigateTo('details')}
+                            className="w-full sm:w-auto px-8 py-3 md:py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition hover:brightness-110 shadow-md"
+                            style={{ backgroundColor: COLORS.cta, color: COLORS.lightText }}
+                          >
+                            Ver Quartos <ArrowRight size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      };
+
+      const DetailsView = () => {
+        const hotel = HOTELS_DATA[0]; 
+        const finalPriceBrl = getFinalPriceBrl(hotel.price);
+        const displayPrice = formatCurrency(finalPriceBrl, currency);
+        const pointsEarned = getPointsEarned(finalPriceBrl);
+
+        return (
+          <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+            <button onClick={() => navigateTo('list')} className="mb-6 flex items-center gap-2 text-sm font-bold opacity-70 hover:opacity-100 transition">
+              <ArrowRight className="rotate-180" size={16}/> Voltar aos resultados
+            </button>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 md:gap-4 mb-8 h-64 md:h-[450px]">
+              <div className="md:col-span-2 md:row-span-2 bg-cover bg-center rounded-2xl md:rounded-l-2xl md:rounded-r-none h-full" style={{ backgroundImage: `url(https://images.unsplash.com/photo-${hotel.image}?auto=format&fit=crop&q=80&w=1200)` }}></div>
+              <div className="bg-cover bg-center hidden md:block" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=800)' }}></div>
+              <div className="bg-cover bg-center rounded-tr-2xl hidden md:block" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800)' }}></div>
+              <div className="bg-cover bg-center hidden md:block" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1595576508898-0ad5c879a061?auto=format&fit=crop&q=80&w=800)' }}></div>
+              <div className="bg-cover bg-center rounded-br-2xl hidden md:block relative cursor-pointer" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&q=80&w=800)' }}>
+                <div className="absolute inset-0 bg-black/50 rounded-br-2xl flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">+12 Fotos</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-10">
+              <div className="lg:col-span-2">
+                <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="bg-[#09247c] text-white text-xs px-2 py-1 rounded font-bold uppercase">Recomendado</span>
+                      <div className="flex text-yellow-400 gap-1">
+                        {[...Array(hotel.stars)].map((_, idx) => (
+                          <Star key={idx} size={14} fill="currentColor" />
+                        ))}
+                      </div>
+                    </div>
+                    <h1 className="text-3xl md:text-4xl font-bold mb-2">{hotel.name}</h1>
+                    <p className="text-sm opacity-70 flex items-center gap-1"><MapPin size={16} className="flex-shrink-0" /> {hotel.location}</p>
+                  </div>
+                </div>
+
+                <h3 className="text-2xl font-bold mb-6 border-t border-gray-200 pt-8">Escolha o seu quarto</h3>
+                
+                <div className="space-y-6">
+                  <div className="border rounded-2xl bg-white shadow-sm overflow-hidden flex flex-col md:flex-row border-l-8 hover:shadow-md transition" style={{ borderLeftColor: COLORS.primary }}>
+                    <div className="w-full md:w-64 h-48 md:h-auto bg-cover bg-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&q=80&w=600)' }}></div>
+                    <div className="p-5 md:p-6 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex justify-between items-start">
+                          <h4 className="text-xl font-bold mb-2 pr-4">Quarto King Deluxe com Vista Mar</h4>
+                          {(currency === 'BRL' || currency === 'USD') && (
+                            <span className="inline-flex items-center gap-1 bg-[#f5f8ff] text-[#09247c] px-2 py-1 rounded text-xs font-bold border border-[#e0e7ff] flex-shrink-0">
+                              <Coins size={12} /> +{pointsEarned.toLocaleString('pt-BR')} pts
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm opacity-70 mb-4 mt-2">
+                          <span>1 Cama King Size</span>
+                          <span className="hidden sm:inline">•</span>
+                          <span>45m²</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mt-6 border-t pt-4">
+                        <div className="mb-4 sm:mb-0">
+                          <span className="text-xs uppercase font-bold bg-[#8d7041] text-white px-2 py-1 rounded">Apenas 2 restantes</span>
+                        </div>
+                        <div className="text-left sm:text-right w-full sm:w-auto">
+                          {hasNomadExplorer && (currency === 'BRL' || currency === 'USD') && (
+                            <p className="text-sm text-gray-400 line-through font-bold">De {formatCurrency(hotel.price, currency)}</p>
+                          )}
+                          <p className="text-2xl md:text-3xl font-black" style={{ color: currency === 'PTS' ? COLORS.tertiary : COLORS.cta }}>
+                             {currency === 'PTS' && <Coins size={22} className="inline mr-1"/>} 
+                             {displayPrice}
+                          </p>
+                          <p className="text-xs opacity-60 mb-3 mt-1">Total para 3 noites (c/ taxas)</p>
+                          <button 
+                            onClick={() => navigateTo('review', 1000)}
+                            className="w-full sm:w-auto px-8 py-3 md:py-3 rounded-xl font-bold transition shadow-md hover:-translate-y-0.5"
+                            style={{ backgroundColor: COLORS.cta, color: COLORS.lightText }}
+                          >
+                            Reservar Quarto
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <aside className="relative mt-8 lg:mt-0">
+                <div className="lg:sticky lg:top-28 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden">
+                  <div className="bg-[#09247c] text-white p-5 md:p-6">
+                    <h4 className="font-bold text-xl mb-1">Resumo da sua pesquisa</h4>
+                  </div>
+                  <div className="p-5 md:p-6 space-y-4">
+                    <div className="flex justify-between items-center border-b pb-4">
+                      <div className="flex flex-col">
+                        <span className="text-xs uppercase font-bold opacity-60">Check-in</span>
+                        <span className="font-black text-lg">12 Out</span>
+                      </div>
+                      <div className="h-10 w-px bg-gray-200"></div>
+                      <div className="flex flex-col items-end">
+                        <span className="text-xs uppercase font-bold opacity-60">Check-out</span>
+                        <span className="font-black text-lg">15 Out</span>
+                      </div>
+                    </div>
+                    <button onClick={() => navigateTo('home')} className="w-full py-3 mt-4 border border-gray-300 rounded-xl font-bold text-sm hover:bg-gray-50 transition">
+                      Alterar pesquisa
+                    </button>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        );
+      };
+
+      const ReviewView = () => {
+        const hotel = HOTELS_DATA[0];
+        const discountAmountBrl = hasNomadExplorer ? hotel.price * NOMAD_MULTIPLIERS.explorerDiscount : 0;
+        const finalPriceBrl = hotel.price - discountAmountBrl;
+        const feesBrl = finalPriceBrl * 0.15; 
+        const basePriceBrl = hotel.price;
+        
+        const pointsEarned = getPointsEarned(finalPriceBrl);
+
+        return (
+          <div className="max-w-2xl mx-auto px-4 py-12 md:py-16">
+            <div className="text-center mb-8 md:mb-10">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-50 text-[#09247c] mb-4">
+                <ShieldCheck size={32} />
+              </div>
+              <h1 className="text-2xl md:text-4xl font-black mb-3 text-[#30170a]">Confirmando sua tarifa...</h1>
+              <p className="text-base md:text-lg opacity-70">Garantindo o melhor valor com os benefícios da sua conta Nomad.</p>
+            </div>
+            
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-2" style={{ backgroundColor: COLORS.primary }}></div>
+              
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 pt-2">
+                <h2 className="text-xl md:text-2xl font-bold">Resumo e Preço Final</h2>
+                <span className="text-xs bg-green-100 text-green-800 px-3 py-1.5 rounded-full font-bold uppercase tracking-wide flex items-center gap-1">
+                  <CheckCircle size={14} /> Tarifa Validada
+                </span>
+              </div>
+              
+              <div className="space-y-4 mb-8">
+                <div className="flex justify-between items-center text-base md:text-lg">
+                  <span className="font-medium">Estadia (3 noites)</span>
+                  <span className="font-bold">{formatCurrency(basePriceBrl - feesBrl, currency)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm opacity-70">
+                  <span>Impostos e Taxas Incluídas</span>
+                  <span>{formatCurrency(feesBrl, currency)}</span>
+                </div>
+                
+                {hasNomadExplorer && (
+                  <div className="flex justify-between items-center text-sm font-bold text-green-600 bg-green-50 p-2 rounded-lg">
+                    <span className="flex items-center gap-2"><Star size={14}/> Desconto Nomad Explorer</span>
+                    <span>- {formatCurrency(discountAmountBrl, currency)}</span>
+                  </div>
+                )}
+                
+                <div className="flex justify-between items-end pt-4 border-t border-dashed">
+                  <div>
+                    <span className="text-sm font-bold uppercase opacity-60 block mb-1">Total a pagar agora</span>
+                    <span className="text-gray-500 text-xs">Inclui todas as taxas</span>
+                  </div>
+                  <span className="text-3xl md:text-4xl font-black flex items-center gap-2" style={{ color: currency === 'PTS' ? COLORS.tertiary : COLORS.cta }}>
+                    {currency === 'PTS' && <Coins size={28}/>}
+                    {formatCurrency(finalPriceBrl, currency)}
+                  </span>
+                </div>
+              </div>
+
+              {(currency === 'BRL' || currency === 'USD') && (
+                <div className="mb-8 p-4 bg-[#f5f8ff] border border-[#e0e7ff] rounded-xl flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-[#09247c]">Acúmulo de Pontos Nomad</p>
+                  </div>
+                  <span className="text-lg font-black text-[#09247c] flex items-center gap-1.5"><Coins size={18}/> +{pointsEarned.toLocaleString('pt-BR')}</span>
+                </div>
+              )}
+
+              <button 
+                onClick={() => navigateTo('checkout')}
+                className="w-full py-4 rounded-xl font-black text-lg md:text-xl flex items-center justify-center gap-3 transition hover:scale-[1.02] shadow-lg"
+                style={{ backgroundColor: COLORS.cta, color: COLORS.lightText }}
+              >
+                Avançar para Pagamento <ArrowRight />
+              </button>
+            </div>
+          </div>
+        );
+      };
+
+      const CheckoutView = () => {
+        const hotel = HOTELS_DATA[0];
+        const finalPriceBrl = getFinalPriceBrl(hotel.price);
+        const pointsEarned = getPointsEarned(finalPriceBrl);
+
+        const [formData, setFormData] = useState({ name: '', surname: '', email: '', phone: '' });
+        
+        // Define as the best option based on V2.2 instructions
+        const [paymentMethod, setPaymentMethod] = useState(currency === 'PTS' ? 'points' : 'nomad_debit');
+        
+        const handleAutofill = () => {
+          setFormData({ name: 'Maria', surname: 'Silva', email: 'maria.silva@exemplo.com.br', phone: '(11) 98765-4321' });
+        };
+
+        // Determine which currency to display in the summary panel based on selected payment
+        const getCheckoutDisplayPrice = () => {
+          if (paymentMethod === 'points') return formatCurrency(finalPriceBrl, 'PTS');
+          if (paymentMethod === 'nomad_debit') return formatCurrency(finalPriceBrl, 'USD');
+          return formatCurrency(finalPriceBrl, 'BRL');
+        };
+
+        return (
+          <div className="max-w-7xl mx-auto px-4 py-8 md:py-12 grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
+            <div className="lg:col-span-8 space-y-8 md:space-y-10 order-2 lg:order-1">
+              
+              <section className="bg-white p-5 md:p-8 rounded-2xl border shadow-sm">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b gap-4">
+                  <h2 className="text-xl md:text-2xl font-bold flex items-center gap-3">
+                    <span className="w-8 h-8 rounded-full flex items-center justify-center text-sm text-[#30170a] font-black flex-shrink-0" style={{ backgroundColor: COLORS.primary }}>1</span>
+                    Dados do Hóspede
+                  </h2>
+                  <button onClick={handleAutofill} className="text-sm font-bold bg-blue-50 text-[#09247c] px-4 py-2 rounded-lg hover:bg-blue-100 transition">
+                    Preencher Automático
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+                  <div>
+                    <label className="block text-sm font-bold mb-1 opacity-70">Primeiro Nome *</label>
+                    <input type="text" value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[#09247c] outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-1 opacity-70">Sobrenome *</label>
+                    <input type="text" value={formData.surname} onChange={e=>setFormData({...formData, surname: e.target.value})} className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[#09247c] outline-none" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-bold mb-1 opacity-70">E-mail *</label>
+                    <input type="email" value={formData.email} onChange={e=>setFormData({...formData, email: e.target.value})} className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[#09247c] outline-none" />
+                  </div>
+                </div>
+              </section>
+
+              <section className="bg-white p-5 md:p-8 rounded-2xl border shadow-sm">
+                <h2 className="text-xl md:text-2xl font-bold flex items-center gap-3 mb-6 pb-4 border-b">
+                  <span className="w-8 h-8 rounded-full flex items-center justify-center text-sm text-[#30170a] font-black flex-shrink-0" style={{ backgroundColor: COLORS.primary }}>2</span>
+                  Opções de Pagamento
+                </h2>
+                
+                {/* PAYMENT SELECTORS */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                  
+                  {/* Nomad Debit (Highlighted) */}
+                  <div 
+                    onClick={() => setPaymentMethod('nomad_debit')}
+                    className={`p-4 border-2 rounded-xl flex flex-col gap-1 cursor-pointer transition relative ${paymentMethod === 'nomad_debit' ? 'border-[#09247c] bg-[#f5f8ff] shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                  >
+                    <div className="absolute -top-3 left-4 bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">
+                      Mais Vantajoso
+                    </div>
+                    <div className="flex items-center gap-3 mt-1">
+                      <div className={`w-5 h-5 rounded-full border-4 flex-shrink-0 ${paymentMethod === 'nomad_debit' ? 'border-[#09247c] bg-[#09247c]' : 'border-gray-300 bg-white'}`}></div>
+                      <Globe color={paymentMethod === 'nomad_debit' ? COLORS.tertiary : 'gray'} size={18} />
+                      <span className={`font-bold text-sm ${paymentMethod === 'nomad_debit' ? 'text-[#09247c]' : 'text-gray-600'}`}>Débito Nomad</span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 pl-8 leading-tight">Pague em USD com spread zero.</p>
+                  </div>
+
+                  {/* Credit Card Nacional */}
+                  <div 
+                    onClick={() => setPaymentMethod('credit_card')}
+                    className={`p-4 border-2 rounded-xl flex flex-col gap-1 cursor-pointer transition ${paymentMethod === 'credit_card' ? 'border-[#09247c] bg-[#f5f8ff] shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full border-4 flex-shrink-0 ${paymentMethod === 'credit_card' ? 'border-[#09247c] bg-[#09247c]' : 'border-gray-300 bg-white'}`}></div>
+                      <CreditCard color={paymentMethod === 'credit_card' ? COLORS.tertiary : 'gray'} size={18} />
+                      <span className={`font-bold text-sm ${paymentMethod === 'credit_card' ? 'text-[#09247c]' : 'text-gray-600'}`}>Cartão de Crédito</span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 pl-8 leading-tight">Pague em BRL. Sujeito a taxas.</p>
+                  </div>
+
+                  {/* Points */}
+                  <div 
+                    onClick={() => setPaymentMethod('points')}
+                    className={`p-4 border-2 rounded-xl flex flex-col gap-1 cursor-pointer transition ${paymentMethod === 'points' ? 'border-[#09247c] bg-[#f5f8ff] shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full border-4 flex-shrink-0 ${paymentMethod === 'points' ? 'border-[#09247c] bg-[#09247c]' : 'border-gray-300 bg-white'}`}></div>
+                      <Coins color={paymentMethod === 'points' ? COLORS.tertiary : 'gray'} size={18} />
+                      <span className={`font-bold text-sm ${paymentMethod === 'points' ? 'text-[#09247c]' : 'text-gray-600'}`}>Usar Pontos</span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 pl-8 leading-tight">Queime seus pontos Nomad.</p>
+                  </div>
+
+                </div>
+
+                {/* FORMULÁRIO: DÉBITO NOMAD (USD) */}
+                {paymentMethod === 'nomad_debit' && (
+                  <div className="bg-white p-6 md:p-8 rounded-xl border-2 border-[#09247c] bg-[#f5f8ff]/30 mb-6 text-center">
+                    <div className="w-16 h-16 bg-[#09247c] text-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+                      <Globe size={32} />
+                    </div>
+                    <h3 className="font-bold text-xl md:text-2xl text-[#09247c] mb-2">Pague na Acomodação</h3>
+                    <p className="text-sm text-[#30170a] mb-6 max-w-md mx-auto opacity-80 leading-relaxed">
+                      Sua reserva será garantida agora. Você pagará o valor total diretamente no check-in utilizando o seu <strong>Cartão Global Nomad</strong>.
+                    </p>
+                    
+                    <div className="bg-white p-4 rounded-xl inline-block border border-[#09247c]/20 shadow-sm">
+                      <span className="text-xs uppercase font-bold text-gray-500 block mb-1">Total a pagar no destino</span>
+                      <span className="text-3xl font-black text-[#09247c]">{formatCurrency(finalPriceBrl, 'USD')}</span>
+                    </div>
+
+                    <p className="text-xs font-bold text-green-600 mt-5 flex items-center justify-center gap-1.5 bg-green-50 p-2 rounded-lg inline-flex mx-auto">
+                      <CheckCircle size={16} /> Nenhuma cobrança será feita neste momento.
+                    </p>
+                  </div>
+                )}
+
+                {/* FORMULÁRIO: CARTÃO DE CRÉDITO (BRL) */}
+                {paymentMethod === 'credit_card' && (
+                  <div className="space-y-4 md:space-y-5 bg-white p-4 md:p-6 rounded-xl border border-gray-200 bg-gray-50 mb-6">
+                    <div>
+                      <label className="block text-xs font-bold uppercase mb-1 opacity-70">Número do Cartão de Crédito</label>
+                      <div className="relative">
+                        <input type="text" placeholder="0000 0000 0000 0000" className="w-full border p-3 pl-10 rounded-xl outline-none focus:border-[#09247c] font-mono" />
+                        <CreditCard size={18} className="absolute left-3 top-3.5 text-gray-400" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold uppercase mb-1 opacity-70">Validade</label>
+                        <input type="text" placeholder="MM/AA" className="w-full border p-3 rounded-xl outline-none focus:border-[#09247c] font-mono text-center" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold uppercase mb-1 opacity-70">CVV</label>
+                        <input type="text" placeholder="***" className="w-full border p-3 rounded-xl outline-none focus:border-[#09247c] font-mono text-center" />
+                      </div>
+                    </div>
+                    <div className="pt-4 border-t">
+                      <label className="block text-xs font-bold uppercase mb-2 opacity-70">Parcelamento em Reais</label>
+                      <select className="w-full border p-4 rounded-xl font-bold bg-white outline-none">
+                        <option>À vista - {formatCurrency(finalPriceBrl, 'BRL')}</option>
+                        <option>3x sem juros de {formatCurrency(finalPriceBrl/3, 'BRL')}</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {/* FORMULÁRIO: PONTOS */}
+                {paymentMethod === 'points' && (
+                  <div className="bg-[#f5f8ff] border border-[#e0e7ff] p-6 rounded-xl mb-6 text-center">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-gray-100 text-[#09247c]">
+                      <Coins size={32} />
+                    </div>
+                    <h3 className="font-bold text-lg text-[#09247c] mb-1">Pagamento com Pontos Nomad</h3>
+                    <p className="text-sm text-gray-600 mb-6">Seu saldo atual será debitado no momento da confirmação.</p>
+                    
+                    <div className="bg-white p-4 rounded-lg inline-block border">
+                      <span className="text-xs uppercase font-bold text-gray-400 block mb-1">Total a ser debitado</span>
+                      <span className="text-3xl font-black text-[#09247c]">{formatCurrency(finalPriceBrl, 'PTS')}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Confirmacao de Acúmulo */}
+                {(paymentMethod === 'credit_card' || paymentMethod === 'nomad_debit') && (
+                  <div className="mb-6 p-4 bg-green-50 border border-green-100 rounded-xl flex items-center gap-3">
+                    <div className="p-2 bg-green-100 rounded-full text-green-700">
+                      <Coins size={20} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-green-800 text-sm md:text-base">Confirmação de Acúmulo</p>
+                      <p className="text-xs md:text-sm text-green-700 mt-0.5">Ao finalizar esta compra, você ganhará <strong className="font-black text-green-900">{pointsEarned.toLocaleString('pt-BR')} pontos</strong>.</p>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs opacity-60 mb-6 text-center">
+                  Ao clicar em "Finalizar Reserva", você concorda com os Termos e Condições e com a Política de Privacidade.
+                </p>
+                
+                <button 
+                  onClick={() => navigateTo('success', 1500)}
+                  className="w-full py-4 md:py-5 rounded-xl font-black text-xl md:text-2xl transition hover:brightness-110 shadow-lg flex justify-center items-center gap-2"
+                  style={{ backgroundColor: COLORS.cta, color: COLORS.lightText }}
+                >
+                  <ShieldCheck /> Finalizar Reserva
+                </button>
+              </section>
+            </div>
+
+            <div className="lg:col-span-4 order-1 lg:order-2">
+              <div className="lg:sticky lg:top-28 bg-white border border-gray-200 rounded-2xl p-5 md:p-6 shadow-lg">
+                <h3 className="font-black text-lg md:text-xl mb-4 border-b pb-4">Detalhes da sua Reserva</h3>
+                
+                <div className="flex gap-4 mb-6">
+                  <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl bg-cover bg-center flex-shrink-0" style={{ backgroundImage: `url(https://images.unsplash.com/photo-${hotel.image}?auto=format&fit=crop&q=80&w=200)` }}></div>
+                  <div>
+                    <h4 className="font-bold text-base md:text-lg leading-tight mb-1">{hotel.name}</h4>
+                    <p className="text-xs opacity-60 mt-1">{hotel.location}</p>
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 p-4 rounded-xl space-y-3 mb-6">
+                  <div className="flex justify-between text-sm">
+                    <span className="opacity-70 font-bold">Check-in</span>
+                    <span className="font-black text-[#09247c]">12 Out 2026</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="opacity-70 font-bold">Check-out</span>
+                    <span className="font-black text-[#09247c]">15 Out 2026</span>
+                  </div>
+                </div>
+                
+                <div className="border-t pt-4">
+                  <div className="flex justify-between items-center mb-4 text-sm md:text-base">
+                    <span className="opacity-70">Taxas e Serviços</span>
+                    <span className="font-medium">Incluso</span>
+                  </div>
+                  <div className="flex justify-between items-center p-4 bg-gray-100 rounded-xl">
+                    <span className="text-base md:text-lg font-bold text-[#30170a]">Total</span>
+                    <span className="text-xl md:text-2xl font-black text-[#09247c]">
+                      {getCheckoutDisplayPrice()}
+                    </span>
+                  </div>
+                  <p className="text-center text-[10px] text-gray-400 mt-3 font-medium uppercase tracking-wider">
+                    Processado de forma segura via Nomad
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      const SuccessView = () => (
+        <div className="max-w-3xl mx-auto px-4 py-16 md:py-20 text-center">
+          <div className="w-20 h-20 md:w-24 md:h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 md:mb-8 animate-bounce shadow-lg shadow-green-100">
+            <CheckCircle size={48} className="md:w-[60px] md:h-[60px]" />
+          </div>
+          <h1 className="text-3xl md:text-5xl font-black mb-4 text-[#30170a]">Reserva Confirmada!</h1>
+          <p className="text-lg md:text-xl opacity-70 mb-8 md:mb-10">Tudo pronto para a sua viagem. Enviamos o voucher para o seu e-mail.</p>
+          
+          <div className="bg-white p-6 md:p-12 rounded-3xl border shadow-xl relative overflow-hidden mb-10 md:mb-12">
+            <div className="absolute top-0 left-0 w-full h-3" style={{ backgroundColor: COLORS.primary }}></div>
+            <p className="text-xs md:text-sm uppercase font-bold opacity-50 mb-3 tracking-wider">Localizador da Reserva</p>
+            <p className="text-4xl md:text-6xl font-mono font-black tracking-widest bg-gray-50 py-4 md:py-6 rounded-xl border border-dashed border-gray-300" style={{ color: COLORS.tertiary }}>
+              BR-9824X
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <button 
+              onClick={() => navigateTo('my-bookings')}
+              className="w-full sm:w-auto px-8 py-4 rounded-xl font-bold transition shadow-md"
+              style={{ backgroundColor: COLORS.tertiary, color: COLORS.lightText }}
+            >
+              Gerenciar Reserva
+            </button>
+            <button 
+              onClick={() => navigateTo('home')}
+              className="w-full sm:w-auto px-8 py-4 rounded-xl font-bold transition bg-white border-2"
+              style={{ borderColor: COLORS.cta, color: COLORS.cta }}
+            >
+              Voltar à página inicial
+            </button>
+          </div>
+        </div>
+      );
+
+      const MyBookingsView = () => (
+        <div className="h-[calc(100vh-80px)] w-full bg-gray-100 relative">
+          <button 
+            onClick={() => navigateTo('home')} 
+            className="absolute top-4 left-4 z-10 bg-white px-4 py-2 rounded-lg shadow-md flex items-center gap-2 font-bold text-sm hover:bg-gray-50"
+            style={{ color: COLORS.tertiary }}
+          >
+            <ArrowRight className="rotate-180" size={16} /> Voltar à Loja
+          </button>
+          
+          <iframe 
+            src="https://vinicius-oliveira-nvvbd.nuitee.link/manage-bookings?language=pt&currency=BRL&from=Lz9sYW5ndWFnZT1wdCZjdXJyZW5jeT1CUkw="
+            className="w-full h-full border-none"
+            title="Gerenciar Reservas"
+            allowFullScreen
+          />
+        </div>
+      );
+
+      return (
+        <Layout>
+          {view === 'home' && <HomeView />}
+          {view === 'list' && <ListView />}
+          {view === 'details' && <DetailsView />}
+          {view === 'review' && <ReviewView />}
+          {view === 'checkout' && <CheckoutView />}
+          {view === 'success' && <SuccessView />}
+          {view === 'my-bookings' && <MyBookingsView />}
+          
+          {loading && (
+            <div className="fixed inset-0 bg-white/90 backdrop-blur-sm z-[100] flex flex-col items-center justify-center">
+              <div className="relative w-20 h-20 mb-4">
+                <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
+                <div className="absolute inset-0 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: COLORS.primary, borderTopColor: 'transparent' }}></div>
+              </div>
+              <p className="font-bold text-lg animate-pulse" style={{ color: COLORS.tertiary }}>Processando...</p>
+            </div>
+          )}
+        </Layout>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

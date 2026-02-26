@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nomad Trips - Booking Engine Beta 2.4</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    
+    /* Grid de Assentos Simples (Aéreo) */
+    .seat-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+    .seat-aisle { grid-column: 4; width: 20px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    
+    // --- SISTEMA DE ÍCONES INLINE ---
+    const createIcon = (paths) => {
+      return function IconComponent({ size = 24, color = "currentColor", className = "", ...props }) {
+        return (
+          <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props} dangerouslySetInnerHTML={{ __html: paths }} />
+        );
+      }
+    };
+
+    // Ícones Gerais
+    const Search = createIcon('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>');
+    const Calendar = createIcon('<rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>');
+    const Users = createIcon('<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>');
+    const MapPin = createIcon('<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>');
+    const Star = createIcon('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>');
+    const Coffee = createIcon('<path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" x2="6" y1="2" y2="4"/><line x1="10" x2="10" y1="2" y2="4"/><line x1="14" x2="14" y1="2" y2="4"/>');
+    const Wifi = createIcon('<path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" x2="12.01" y1="20" y2="20"/>');
+    const ShieldCheck = createIcon('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>');
+    const CreditCard = createIcon('<rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/>');
+    const CheckCircle = createIcon('<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>');
+    const ArrowRight = createIcon('<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>');
+    const Filter = createIcon('<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>');
+    const Briefcase = createIcon('<rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>');
+    const ChevronDown = createIcon('<path d="m6 9 6 6 6-6"/>');
+    const Check = createIcon('<path d="M20 6 9 17l-5-5"/>');
+    const Menu = createIcon('<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>');
+    const Coins = createIcon('<circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/>');
+    const Globe = createIcon('<circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/>');
+    const Plane = createIcon('<path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.2-1.1.6l-1 2.6c-.1.3 0 .7.3.9l6.5 2.8L7 17l-3.2-1c-.3-.1-.7 0-.9.2l-1.3 1.3c-.2.2-.2.6 0 .8l4.4 2.1 2.1 4.4c.2.2.6.2.8 0l1.3-1.3c.2-.2.3-.6.2-.9L9.5 19l4.5-2.5 2.8 6.5c.2.3.6.4.9.3l2.6-1c.4-.2.7-.6.6-1.1z"/>');
+    const ArrowLeftRight = createIcon('<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>');
+    const Building = createIcon('<rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/>');
+    const Armchair = createIcon('<path d="M19 9V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v3"/><path d="M3 11v5a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v2H7v-2a2 2 0 0 0-4 0Z"/><path d="M5 18v2"/><path d="M19 18v2"/>');
+    const Luggage = createIcon('<path d="M6 20h0a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h0"/><path d="M8 18V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v14"/><path d="M10 20h4"/><circle cx="16" cy="20" r="2"/><circle cx="8" cy="20" r="2"/>');
+    const QrCode = createIcon('<rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/>');
+    const Tag = createIcon('<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>');
+    const X = createIcon('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>');
+
+    // --- DESIGN SYSTEM CONSTANTS ---
+    const COLORS = {
+      primary: '#ffce00',     // Destaques/Ícones principais
+      cta: '#8d7041',         // Fundo de Botões (Calls to Action)
+      darkText: '#30170a',    // Tipografia principal/Fundos claros
+      lightText: '#f7f9f7',   // Textos sobre fundos escuros/botões
+      tertiary: '#09247c'     // Elementos secundários, bordas, badges
+    };
+
+    // --- LÓGICA DO ECOSSISTEMA NOMAD ---
+    const NOMAD_MULTIPLIERS = {
+      usdRate: 5.05, 
+      pointsCostPerBrl: 50, 
+      pointsEarnedPerBrl: 2, 
+      explorerDiscount: 0.10, // 10% de desconto no Explorer
+      ccbrDiscount: 0.05 // 5% de desconto Cartão Crédito BR
+    };
+
+    // DADOS: HOTÉIS (V2.2)
+    const HOTELS_DATA = [
+      { id: 1, name: 'Copacabana Palace Premium', price: 3845.00, rating: 9.4, reviews: 342, stars: 5, tag: 'Mais Vendido', location: 'Beira-mar, a 1.2km do centro', image: '1566073771259-6a8506099945' },
+      { id: 2, name: 'Boutique Hotel Ipanema', price: 2950.00, rating: 8.9, reviews: 128, stars: 4, tag: null, location: 'Ipanema, a 2km do centro', image: '1582719478250-c89cae4dc85b' },
+      { id: 3, name: 'Leblon Oceanview Suites', price: 3120.00, rating: 9.1, reviews: 256, stars: 5, tag: null, location: 'Leblon, a 3km do centro', image: '1542314831-068cd1dbfeeb' }
+    ];
+
+    // DADOS: VOOS (V2.3)
+    const FLIGHTS_DATA = [
+      { id: 101, airline: 'Azul', flightNum: 'AD 8704', origin: 'GRU', dest: 'MCO', depTime: '09:00', arrTime: '17:30', duration: '9h 30m', stops: 0, price: 3200.00, logo: '✈️' },
+      { id: 102, airline: 'LATAM', flightNum: 'LA 8122', origin: 'GRU', dest: 'MCO', depTime: '23:15', arrTime: '06:45', duration: '8h 30m', stops: 0, price: 3500.00, logo: '🦅' },
+      { id: 103, airline: 'Copa Airlines', flightNum: 'CM 700', origin: 'GRU', dest: 'MCO', depTime: '01:30', arrTime: '12:00', duration: '11h 30m', stops: 1, price: 2800.00, logo: '🌐' },
+    ];
+
+    const App = () => {
+      // Navegação Global
+      const [view, setView] = useState('home'); // home, list, details, fareFamilies, ancillaries, review, checkout, success
+      const [loading, setLoading] = useState(false);
+      
+      // Vertical Ativa (Hotéis vs Voos)
+      const [vertical, setVertical] = useState('flights'); 
+
+      // Estados Globais de Configuração Nomad
+      const [currency, setCurrency] = useState('USD'); 
+      const [hasNomadExplorer, setHasNomadExplorer] = useState(false);
+
+      // Busca Hotéis
+      const [destination, setDestination] = useState('Rio de Janeiro, Brasil');
+      const [showHotelAuto, setShowHotelAuto] = useState(false);
+      
+      // Busca Voos
+      const [flightOrigin, setFlightOrigin] = useState('GRU - São Paulo');
+      const [flightDest, setFlightDest] = useState('MCO - Orlando');
+      const [tripType, setTripType] = useState('round_trip'); 
+      const [flightClass, setFlightClass] = useState('economy');
+
+      // Global Config (PAX / Quartos)
+      const [adults, setAdults] = useState(2);
+      const [childrenCount, setChildrenCount] = useState(0);
+      const [showPaxDropdown, setShowPaxDropdown] = useState(false);
+      const [sortBy, setSortBy] = useState('recommended');
+
+      // Seleções Atuais
+      const [selectedFlight, setSelectedFlight] = useState(null);
+      const [selectedFare, setSelectedFare] = useState(null); 
+      const [extraBags, setExtraBags] = useState(0);
+      
+      const [selectedHotel, setSelectedHotel] = useState(null);
+
+      const navigateTo = (targetView, delay = 0) => {
+        if (delay > 0) {
+          setLoading(true);
+          setTimeout(() => {
+            setView(targetView);
+            setLoading(false);
+          }, delay);
+        } else {
+          setView(targetView);
+        }
+        window.scrollTo(0, 0);
+      };
+
+      // Formatação de Preços
+      const getFinalPriceBrl = (basePriceBrl) => {
+        return hasNomadExplorer ? basePriceBrl * (1 - NOMAD_MULTIPLIERS.explorerDiscount) : basePriceBrl;
+      };
+
+      const formatCurrency = (amountBrl, targetCurrency) => {
+        if (targetCurrency === 'PTS') return Math.floor(amountBrl * NOMAD_MULTIPLIERS.pointsCostPerBrl).toLocaleString('pt-BR') + ' pts';
+        if (targetCurrency === 'USD') return 'US$ ' + (amountBrl / NOMAD_MULTIPLIERS.usdRate).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return 'R$ ' + amountBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      };
+
+      const getPointsEarned = (finalPriceBrl) => {
+        return Math.floor(finalPriceBrl * NOMAD_MULTIPLIERS.pointsEarnedPerBrl);
+      };
+
+      const Layout = ({ children }) => (
+        <div className="min-h-screen bg-[#fcfcfc] font-sans flex flex-col" style={{ color: COLORS.darkText }}>
+          <nav className="sticky top-0 z-50 bg-white shadow-sm border-b" style={{ borderColor: `${COLORS.tertiary}20` }}>
+            <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
+              <div className="flex items-center cursor-pointer" onClick={() => navigateTo('home')}>
+                <img src="https://cdn5.travelconline.com/images/fit-in/2000x0/filters:quality(75):strip_metadata():format(webp)/https%3A%2F%2Ftr2storage.blob.core.windows.net%2Fagencylogos%2FMhktqVh2LZp2Lpqnwi-PLLZAkjmbuiLFUp.png" alt="Nomad Trips Logo" className="h-10 md:h-12 object-contain" />
+              </div>
+              <div className="flex items-center gap-4 md:gap-8">
+                <button onClick={() => navigateTo('my-bookings')} className="hidden md:flex items-center gap-2 font-semibold hover:opacity-70 transition-opacity">
+                  <Briefcase size={20} color={COLORS.tertiary} />
+                  <span>Minhas viagens</span>
+                </button>
+                <button className="hidden md:block px-6 py-2 rounded-full font-bold transition-transform hover:scale-105" style={{ backgroundColor: COLORS.cta, color: COLORS.lightText }}>
+                  Entrar
+                </button>
+                <button className="md:hidden p-2 opacity-70"><Menu size={24} color={COLORS.darkText} /></button>
+              </div>
+            </div>
+          </nav>
+          <main className="flex-grow">{children}</main>
+          <footer className="bg-white border-t py-8 text-center text-sm opacity-70 mt-auto">
+            <p>&copy; 2026 Nomad Trips. Todos os direitos reservados.</p>
+          </footer>
+        </div>
+      );
+
+      const HomeView = () => {
+        const [showOrigAuto, setShowOrigAuto] = useState(false);
+        const [showDestAuto, setShowDestAuto] = useState(false);
+
+        return (
+          <div className="relative">
+            <div className="min-h-[550px] py-16 md:py-0 flex items-center relative bg-slate-50 border-b border-gray-200">
+              <div className="relative max-w-7xl mx-auto px-4 w-full pt-8">
+                
+                <h1 className="text-4xl md:text-6xl font-black mb-4 md:mb-6 max-w-2xl leading-tight" style={{ color: COLORS.darkText }}>
+                  Sua próxima experiência <span style={{ color: COLORS.cta }}>Premium</span> começa aqui.
+                </h1>
+
+                {/* Vertical Toggle */}
+                <div className="flex bg-gray-200 p-1 rounded-xl w-max mb-6">
+                  <button 
+                    onClick={() => setVertical('hotels')} 
+                    className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold text-sm transition-all ${vertical === 'hotels' ? 'bg-[#09247c] shadow text-white' : 'text-gray-600 hover:text-[#09247c]'}`}
+                  >
+                    <Building size={18} /> Hotéis
+                  </button>
+                  <button 
+                    onClick={() => setVertical('flights')} 
+                    className={`flex items-center gap-2 px-6 py-2 rounded-lg font-bold text-sm transition-all ${vertical === 'flights' ? 'bg-[#09247c] shadow text-white' : 'text-gray-600 hover:text-[#09247c]'}`}
+                  >
+                    <Plane size={18} /> Voos
+                  </button>
+                </div>
+
+                <div className="bg-white p-5 md:p-6 rounded-2xl shadow-xl border border-gray-100 relative z-10">
+                  
+                  {/* Global Setup: Currency & Nomad Explorer */}
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 border-b border-gray-100 pb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
+                      <span className="text-sm font-bold text-[#30170a] opacity-70">Exibir preços em:</span>
+                      <div className="flex items-center bg-gray-100 p-1 rounded-lg border border-gray-200 w-full sm:w-auto">
+                        <button onClick={() => setCurrency('USD')} className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all ${currency === 'USD' ? 'bg-white shadow text-[#09247c]' : 'text-gray-500 hover:text-gray-700'}`}>Dólar (USD)</button>
+                        <button onClick={() => setCurrency('BRL')} className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all ${currency === 'BRL' ? 'bg-white shadow text-[#09247c]' : 'text-gray-500 hover:text-gray-700'}`}>Reais (BRL)</button>
+                        <button onClick={() => setCurrency('PTS')} className={`flex-1 sm:flex-none px-4 py-1.5 text-sm font-bold rounded-md transition-all flex items-center justify-center gap-1 ${currency === 'PTS' ? 'bg-[#09247c] text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}><Coins size={14} /> Pontos</button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-colors border-2 flex-shrink-0 ${hasNomadExplorer ? 'bg-[#09247c] border-[#09247c]' : 'bg-white border-gray-300'}`} onClick={() => setHasNomadExplorer(!hasNomadExplorer)}>
+                        {hasNomadExplorer && <Check size={16} color="white" strokeWidth={3} />}
+                      </div>
+                      <label className="text-[#30170a] font-medium text-sm flex items-center flex-wrap gap-2 cursor-pointer select-none" onClick={() => setHasNomadExplorer(!hasNomadExplorer)}>
+                        Tenho o cartão Nomad Explorer <span className="bg-[#ffce00] text-[#30170a] text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-tight shadow-sm">Descontos Ativos</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* FLIGHTS SEARCH FORM */}
+                  {vertical === 'flights' && (
+                    <div className="space-y-4">
+                      {/* Trip Type & Class row */}
+                      <div className="flex flex-wrap gap-6 items-center">
+                        <div className="flex gap-4 items-center">
+                          <label className="flex items-center gap-2 cursor-pointer font-bold text-sm">
+                            <input type="radio" name="tripType" className="accent-[#09247c]" checked={tripType === 'round_trip'} onChange={() => setTripType('round_trip')} /> Ida e Volta
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer font-bold text-sm">
+                            <input type="radio" name="tripType" className="accent-[#09247c]" checked={tripType === 'one_way'} onChange={() => setTripType('one_way')} /> Só Ida
+                          </label>
+                        </div>
+                        <div className="h-4 w-px bg-gray-300 hidden md:block"></div>
+                        <select value={flightClass} onChange={e => setFlightClass(e.target.value)} className="outline-none font-bold text-sm bg-transparent cursor-pointer text-[#09247c]">
+                          <option value="economy">Econômica</option>
+                          <option value="business">Executiva</option>
+                        </select>
+                      </div>
+
+                      {/* Main Search Inputs */}
+                      <div className="flex flex-col lg:flex-row gap-4">
+                        {/* Origin/Dest */}
+                        <div className="flex flex-col md:flex-row flex-2 border border-gray-200 rounded-xl relative">
+                          <div className="flex-1 p-3 md:border-r border-gray-200 relative">
+                            <label className="text-[10px] font-bold uppercase opacity-60">De onde?</label>
+                            <input type="text" className="w-full outline-none font-bold text-lg bg-transparent" value={flightOrigin} onChange={e=>setFlightOrigin(e.target.value)} onFocus={()=>setShowOrigAuto(true)} onBlur={()=>setTimeout(()=>setShowOrigAuto(false),200)} />
+                            {showOrigAuto && (
+                              <div className="absolute top-full left-0 w-full mt-2 bg-white shadow-xl rounded-xl z-50 border overflow-hidden">
+                                <button onMouseDown={()=>{setFlightOrigin('GRU - São Paulo'); setShowOrigAuto(false);}} className="w-full text-left p-3 hover:bg-gray-50 border-b font-bold text-sm">GRU - Guarulhos, São Paulo</button>
+                                <button onMouseDown={()=>{setFlightOrigin('VCP - Campinas'); setShowOrigAuto(false);}} className="w-full text-left p-3 hover:bg-gray-50 font-bold text-sm">VCP - Viracopos, Campinas</button>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Swap button */}
+                          <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white border border-gray-200 rounded-full items-center justify-center cursor-pointer shadow-sm hover:shadow z-10 text-[#09247c]"
+                               onClick={() => { const temp = flightOrigin; setFlightOrigin(flightDest); setFlightDest(temp); }}>
+                            <ArrowLeftRight size={14} />
+                          </div>
+
+                          <div className="flex-1 p-3 relative border-t md:border-t-0">
+                            <label className="text-[10px] font-bold uppercase opacity-60">Para onde?</label>
+                            <input type="text" className="w-full outline-none font-bold text-lg bg-transparent" value={flightDest} onChange={e=>setFlightDest(e.target.value)} onFocus={()=>setShowDestAuto(true)} onBlur={()=>setTimeout(()=>setShowDestAuto(false),200)} />
+                            {showDestAuto && (
+                              <div className="absolute top-full left-0 w-full mt-2 bg-white shadow-xl rounded-xl z-50 border overflow-hidden">
+                                <button onMouseDown={()=>{setFlightDest('MCO - Orlando'); setShowDestAuto(false);}} className="w-full text-left p-3 hover:bg-gray-50 border-b font-bold text-sm">MCO - Orlando, FL, EUA</button>
+                                <button onMouseDown={()=>{setFlightDest('JFK - Nova York'); setShowDestAuto(false);}} className="w-full text-left p-3 hover:bg-gray-50 font-bold text-sm">JFK - John F. Kennedy, NY, EUA</button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Dates */}
+                        <div className="flex-1 border border-gray-200 rounded-xl p-3 flex items-center gap-3">
+                          <Calendar size={20} color={COLORS.primary} className="flex-shrink-0" />
+                          <div className="flex flex-col">
+                            <label className="text-[10px] font-bold uppercase opacity-60">Datas</label>
+                            <span className="font-bold text-lg">12 Out - 20 Out</span>
+                          </div>
+                        </div>
+
+                        {/* PAX */}
+                        <div className="flex-1 border border-gray-200 rounded-xl p-3 flex items-center gap-3 relative cursor-pointer" onClick={() => setShowPaxDropdown(!showPaxDropdown)}>
+                          <Users size={20} color={COLORS.primary} className="flex-shrink-0" />
+                          <div className="flex flex-col flex-grow">
+                            <label className="text-[10px] font-bold uppercase opacity-60">Passageiros</label>
+                            <span className="font-bold text-lg">{adults} Adulto{adults > 1 ? 's' : ''}{childrenCount > 0 ? `, ${childrenCount} Cri` : ''}</span>
+                          </div>
+                          <ChevronDown size={16} className={`opacity-50 transition-transform ${showPaxDropdown ? 'rotate-180' : ''}`} />
+                          
+                          {showPaxDropdown && (
+                            <div className="absolute top-full right-0 mt-2 w-72 bg-white border shadow-2xl rounded-xl z-50 p-5 cursor-default" onClick={e=>e.stopPropagation()}>
+                              <div className="flex justify-between items-center mb-5">
+                                <div><span className="font-bold block">Adultos</span><span className="text-xs text-gray-500">12+ anos</span></div>
+                                <div className="flex items-center gap-4">
+                                  <button onClick={() => setAdults(Math.max(1, adults - 1))} className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-lg text-[#09247c]">-</button>
+                                  <span className="font-bold w-4 text-center">{adults}</span>
+                                  <button onClick={() => setAdults(adults + 1)} className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-lg text-[#09247c]">+</button>
+                                </div>
+                              </div>
+                              <div className="flex justify-between items-center mb-6">
+                                <div><span className="font-bold block">Crianças</span><span className="text-xs text-gray-500">Até 11 anos</span></div>
+                                <div className="flex items-center gap-4">
+                                  <button onClick={() => setChildrenCount(Math.max(0, childrenCount - 1))} className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-lg text-[#09247c]">-</button>
+                                  <span className="font-bold w-4 text-center">{childrenCount}</span>
+                                  <button onClick={() => setChildrenCount(childrenCount + 1)} className="w-8 h-8 rounded-full border border-gray-300 flex items-center justify-center text-lg text-[#09247c]">+</button>
+                                </div>
+                              </div>
+                              <button onClick={() => setShowPaxDropdown(false)} className="w-full py-2 rounded-lg font-bold" style={{ backgroundColor: COLORS.tertiary, color: COLORS.lightText }}>Concluir</button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Search Button */}
+                        <button onClick={() => navigateTo('list', 800)} className="flex items-center justify-center gap-2 px-8 py-3 rounded-xl font-bold text-xl transition-all hover:brightness-110 shadow-md" style={{ backgroundColor: COLORS.cta, color: COLORS.lightText }}>
+                          <Search size={22} /> Buscar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* HOTELS SEARCH FORM (Restaurado da V2.2) */}
+                  {vertical === 'hotels' && (
+                    <div className="flex flex-col lg:flex-row gap-5">
+                      <div className="flex flex-col flex-1 border border-gray-200 rounded-xl p-3 relative">
+                        <label className="text-[10px] font-bold uppercase opacity-60">Destino ou Hotel</label>
+                        <div className="flex items-center gap-2">
+                          <MapPin size={20} color={COLORS.primary} className="flex-shrink-0" />
+                          <input 
+                            type="text" 
+                            className="w-full outline-none text-base md:text-lg font-bold bg-transparent truncate" 
+                            value={destination}
+                            onChange={(e) => {
+                              setDestination(e.target.value);
+                              setShowHotelAuto(true);
+                            }}
+                            onFocus={() => setShowHotelAuto(true)}
+                            onBlur={() => setTimeout(() => setShowHotelAuto(false), 200)}
+                          />
+                        </div>
+                        
+                        {showHotelAuto && (
+                          <div className="absolute top-full left-0 mt-2 w-full md:w-80 bg-white border shadow-xl rounded-xl z-50 overflow-hidden">
+                            <div className="p-2 text-xs font-bold uppercase text-gray-400 bg-gray-50">Sugestões Nacionais</div>
+                            <button onMouseDown={() => { setDestination('Rio de Janeiro, Brasil'); setShowHotelAuto(false); }} className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b">
+                              <MapPin size={16} color={COLORS.tertiary} />
+                              <div><p className="font-bold text-sm">Rio de Janeiro</p><p className="text-xs text-gray-500">Brasil</p></div>
+                            </button>
+                            <button onMouseDown={() => { setDestination('Gramado, RS'); setShowHotelAuto(false); }} className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b">
+                              <MapPin size={16} color={COLORS.tertiary} />
+                              <div><p className="font-bold text-sm">Gramado</p><p className="text-xs text-gray-500">Rio Grande do Sul, Brasil</p></div>
+                            </button>
+                            <button onMouseDown={() => { setDestination('Orlando, EUA'); setShowHotelAuto(false); }} className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3">
+                              <Globe size={16} color={COLORS.tertiary} />
+                              <div><p className="font-bold text-sm">Orlando</p><p className="text-xs text-gray-500">Flórida, Estados Unidos</p></div>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col flex-1 border border-gray-200 rounded-xl p-3">
+                        <label className="text-[10px] font-bold uppercase opacity-60">Período da Viagem</label>
+                        <div className="flex items-center gap-2 cursor-pointer mt-1">
+                          <Calendar size={20} color={COLORS.primary} className="flex-shrink-0" />
+                          <span className="text-base md:text-lg font-bold whitespace-nowrap">12 Out - 15 Out</span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col flex-1 border border-gray-200 rounded-xl p-3 relative">
+                        <label className="text-[10px] font-bold uppercase opacity-60">Hóspedes</label>
+                        <div className="flex items-center justify-between cursor-pointer mt-1" onClick={() => setShowPaxDropdown(!showPaxDropdown)}>
+                          <div className="flex items-center gap-2">
+                            <Users size={20} color={COLORS.primary} className="flex-shrink-0" />
+                            <span className="text-base md:text-lg font-bold truncate">
+                              {adults} Adulto{adults > 1 ? 's' : ''}{childrenCount > 0 ? `, ${childrenCount} Cri` : ''}
+                            </span>
+                          </div>
+                          <ChevronDown size={16} className={`opacity-50 transition-transform ${showPaxDropdown ? 'rotate-180' : ''}`} />
+                        </div>
+                        
+                        {showPaxDropdown && (
+                          <div className="absolute top-full left-0 md:left-auto md:right-0 mt-2 w-full md:w-72 bg-white border shadow-2xl rounded-xl z-50 p-5 cursor-default" onClick={e=>e.stopPropagation()}>
+                            <div className="flex justify-between items-center mb-5">
+                              <div><span className="font-bold text-base block">Adultos</span><span className="text-xs text-gray-500">12 anos ou mais</span></div>
+                              <div className="flex items-center gap-4">
+                                <button onClick={() => setAdults(Math.max(1, adults - 1))} className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-lg text-[#09247c] hover:bg-gray-50">-</button>
+                                <span className="font-bold text-lg w-4 text-center">{adults}</span>
+                                <button onClick={() => setAdults(adults + 1)} className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-lg text-[#09247c] hover:bg-gray-50">+</button>
+                              </div>
+                            </div>
+                            <div className="flex justify-between items-center mb-6">
+                              <div><span className="font-bold text-base block">Crianças</span><span className="text-xs text-gray-500">Até 11 anos</span></div>
+                              <div className="flex items-center gap-4">
+                                <button onClick={() => setChildrenCount(Math.max(0, childrenCount - 1))} className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-lg text-[#09247c] hover:bg-gray-50">-</button>
+                                <span className="font-bold text-lg w-4 text-center">{childrenCount}</span>
+                                <button onClick={() => setChildrenCount(childrenCount + 1)} className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-lg text-[#09247c] hover:bg-gray-50">+</button>
+                              </div>
+                            </div>
+                            <button onClick={() => setShowPaxDropdown(false)} className="w-full py-3 rounded-lg font-bold transition-all hover:brightness-110" style={{ backgroundColor: COLORS.tertiary, color: COLORS.lightText }}>Aplicar</button>
+                          </div>
+                        )}
+                      </div>
+
+                      <button onClick={() => navigateTo('list', 800)} className="flex items-center justify-center gap-2 px-8 py-3 rounded-xl font-bold text-xl transition-all hover:brightness-110 shadow-md" style={{ backgroundColor: COLORS.cta, color: COLORS.lightText }}>
+                        <Search size={22} /> Buscar
+                      </button>
+                    </div>
+                  )}
+
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      const ListView = () => {
+        // Obter os itens e ordená-left com base na seleção
+        let items = [];
+        if (vertical === 'flights') {
+          items = [...FLIGHTS_DATA].sort((a, b) => {
+            if (sortBy === 'price_asc') return getFinalPriceBrl(a.price) - getFinalPriceBrl(b.price);
+            return a.id - b.id;
+          });
+        } else {
+          items = [...HOTELS_DATA].sort((a, b) => {
+            if (sortBy === 'price_asc') return getFinalPriceBrl(a.price) - getFinalPriceBrl(b.price);
+            if (sortBy === 'rating_desc') return b.rating - a.rating;
+            return a.id - b.id;
+          });
+        }
+
+        return (
+          <div className="max-w-7xl mx-auto px-4 py-6 md:py-10 flex flex-col lg:flex-row gap-6 md:gap-8">
+            {/* Filtros SideBar */}
+            <aside className="w-full lg:w-64 flex-shrink-0 hidden lg:block">
+              <div className="sticky top-28 bg-white p-6 rounded-2xl shadow-sm border space-y-6">
+                <h3 className="font-bold text-xl mb-4 flex items-center gap-2 border-b pb-4"><Filter size={18} /> Filtros</h3>
+                
+                {vertical === 'flights' ? (
+                  <>
+                    <div>
+                      <p className="font-bold mb-3 text-sm">Bagagem Despachada</p>
+                      <label className="flex items-center gap-2 text-sm mb-2"><input type="checkbox" className="accent-[#09247c]" /> Incluída</label>
+                      <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-[#09247c]" /> Adicionar depois</label>
+                    </div>
+                    <div>
+                      <p className="font-bold mb-3 text-sm">Conexões</p>
+                      <label className="flex items-center gap-2 text-sm mb-2"><input type="checkbox" className="accent-[#09247c]" defaultChecked /> Direto</label>
+                      <label className="flex items-center gap-2 text-sm mb-2"><input type="checkbox" className="accent-[#09247c]" defaultChecked /> 1 Parada</label>
+                      <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-[#09247c]" /> 2+ Paradas</label>
+                    </div>
+                    <div>
+                      <p className="font-bold mb-3 text-sm">Companhia Aérea</p>
+                      <label className="flex items-center gap-2 text-sm mb-2"><input type="checkbox" className="accent-[#09247c]" defaultChecked /> Azul</label>
+                      <label className="flex items-center gap-2 text-sm mb-2"><input type="checkbox" className="accent-[#09247c]" defaultChecked /> LATAM</label>
+                      <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-[#09247c]" defaultChecked /> Copa Airlines</label>
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <p className="font-bold mb-3">Categoria (Estrelas)</p>
+                    {[5, 4, 3, 2].map(stars => (
+                      <label key={stars} className="flex items-center gap-3 mb-3 cursor-pointer group">
+                        <div className="relative flex items-center justify-center w-5 h-5 rounded border-2 border-gray-300 group-hover:border-[#09247c]">
+                          <input type="checkbox" className="peer absolute opacity-0 w-full h-full cursor-pointer" defaultChecked={stars >= 4} />
+                          <Check size={14} strokeWidth={4} className="opacity-0 peer-checked:opacity-100 text-[#09247c]" />
+                        </div>
+                        <div className="flex text-yellow-400 gap-1">
+                          {[...Array(stars)].map((_, idx) => (
+                            <Star key={idx} size={14} fill="currentColor" />
+                          ))}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </aside>
+
+            {/* List */}
+            <div className="flex-1 space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-xl border shadow-sm">
+                <p className="font-medium text-sm md:text-base">
+                  <strong>{items.length}</strong> {vertical === 'flights' ? 'voos encontrados' : `acomodações encontradas em ${destination.split(',')[0]}`}
+                </p>
+                <select className="border p-2 rounded-lg outline-none font-bold text-sm bg-gray-50" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                  <option value="recommended">Recomendados</option>
+                  <option value="price_asc">Menor Preço</option>
+                  {vertical === 'hotels' && <option value="rating_desc">Avaliação dos hóspedes</option>}
+                </select>
+              </div>
+
+              {items.map(item => {
+                const finalPriceBrl = getFinalPriceBrl(item.price);
+                const displayPrice = formatCurrency(finalPriceBrl, currency);
+                const pointsEarned = getPointsEarned(finalPriceBrl);
+                
+                if (vertical === 'flights') {
+                  /* FLIGHT CARD V2.3 */
+                  return (
+                    <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 hover:shadow-lg transition-shadow p-5 flex flex-col md:flex-row justify-between gap-6">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-4">
+                          <span className="text-2xl">{item.logo}</span>
+                          <div>
+                            <p className="font-black text-[#09247c]">{item.airline}</p>
+                            <p className="text-xs text-gray-500 font-medium">Voo {item.flightNum} • Classe Econômica</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between md:justify-start md:gap-12 w-full">
+                          <div className="text-center">
+                            <p className="text-2xl font-black">{item.depTime}</p>
+                            <p className="text-sm font-bold text-gray-500">{item.origin}</p>
+                          </div>
+                          <div className="flex flex-col items-center px-4 md:px-8">
+                            <p className="text-[11px] text-gray-500 font-bold mb-1">{item.duration}</p>
+                            <div className="w-full h-px bg-gray-300 relative flex items-center justify-center min-w-[80px]">
+                              <Plane size={14} className="text-[#ffce00] absolute" style={{ fill: '#ffce00' }} />
+                            </div>
+                            <p className="text-[11px] text-gray-500 font-bold mt-1">{item.stops === 0 ? 'Voo Direto' : `${item.stops} Parada(s)`}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-2xl font-black">{item.arrTime}</p>
+                            <p className="text-sm font-bold text-gray-500">{item.dest}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col justify-end items-start md:items-end border-t md:border-t-0 md:border-l border-dashed border-gray-300 pt-4 md:pt-0 md:pl-6">
+                        <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Preço por passageiro</p>
+                        
+                        {hasNomadExplorer && (currency === 'BRL' || currency === 'USD') && (
+                          <p className="text-xs text-gray-400 line-through font-bold">De {formatCurrency(item.price, currency)}</p>
+                        )}
+                        
+                        <p className="text-3xl font-black mb-3 text-[#8d7041]">
+                          {currency === 'PTS' && <Coins size={20} className="inline mr-1 -mt-1"/>}
+                          {displayPrice}
+                        </p>
+
+                        <button 
+                          onClick={() => { setSelectedFlight(item); navigateTo('fareFamilies'); }}
+                          className="w-full md:w-auto px-8 py-3 rounded-xl font-bold transition shadow-md hover:scale-105"
+                          style={{ backgroundColor: COLORS.cta, color: COLORS.lightText }}
+                        >
+                          Ver Tarifas
+                        </button>
+                      </div>
+                    </div>
+                  );
+                } else {
+                  /* HOTEL CARD V2.2 */
+                  return (
+                    <div key={item.id} className="bg-white rounded-2xl shadow-sm border hover:shadow-lg transition-shadow duration-300 flex flex-col md:flex-row overflow-hidden">
+                      <div className="w-full md:w-72 h-56 md:h-auto bg-cover bg-center relative" style={{ backgroundImage: `url(https://images.unsplash.com/photo-${item.image}?auto=format&fit=crop&q=80&w=800)` }}>
+                        {item.tag && (
+                          <span className="absolute top-4 left-4 text-xs font-bold uppercase px-3 py-1 rounded bg-[#09247c] text-white shadow-md">
+                            {item.tag}
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="flex-1 p-5 md:p-6 flex flex-col justify-between">
+                        <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                          <div>
+                            <h2 className="text-xl md:text-2xl font-bold mb-1 hover:underline cursor-pointer" onClick={() => { setSelectedHotel(item); navigateTo('details'); }}>
+                              {item.name}
+                            </h2>
+                            <div className="flex text-yellow-400 mb-2 gap-1">
+                              {[...Array(item.stars)].map((_, idx) => (
+                                <Star key={idx} size={14} fill="currentColor" />
+                              ))}
+                            </div>
+                            <p className="text-sm opacity-70 flex items-center gap-1"><MapPin size={14} /> {item.location}</p>
+                          </div>
+                          
+                          <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto mt-2 sm:mt-0">
+                            <div className="flex items-center gap-2 bg-[#09247c] text-white px-2 py-1 rounded-lg">
+                              <span className="font-bold">{item.rating.toFixed(1)}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-xs font-bold mt-1 block" style={{ color: COLORS.tertiary }}>
+                                {item.rating >= 9 ? 'Excepcional' : 'Fabuloso'}
+                              </span>
+                              <span className="text-xs text-gray-400">{item.reviews} avaliações</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mt-6 gap-4 border-t sm:border-t-0 pt-4 sm:pt-0">
+                          <div className="flex flex-col gap-2">
+                            <div className="flex flex-wrap gap-2 text-xs font-bold">
+                              <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded text-green-700"><Wifi size={14} /> Wi-Fi Grátis</span>
+                              <span className="flex items-center gap-1 bg-gray-100 px-2 py-1 rounded"><Coffee size={14} /> Café da manhã</span>
+                            </div>
+                            
+                            {(currency === 'BRL' || currency === 'USD') && (
+                              <div className="mt-2 inline-flex items-center gap-1.5 bg-[#f5f8ff] text-[#09247c] px-2 py-1 rounded-md text-xs font-bold border border-[#e0e7ff] self-start">
+                                <Coins size={14} />
+                                Acumule +{pointsEarned.toLocaleString('pt-BR')} pontos
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="text-left sm:text-right w-full sm:w-auto">
+                            <p className="text-xs opacity-60 mb-1">Preço para 3 noites, {adults} adulto{adults > 1 ? 's' : ''}</p>
+                            
+                            {hasNomadExplorer && (currency === 'BRL' || currency === 'USD') && (
+                              <p className="text-sm text-gray-400 line-through font-bold">De {formatCurrency(item.price, currency)}</p>
+                            )}
+
+                            <p className="text-2xl md:text-3xl font-black mb-3 flex items-center sm:justify-end gap-2" style={{ color: currency === 'PTS' ? COLORS.tertiary : COLORS.cta }}>
+                              {currency === 'PTS' && <Coins size={24}/>} 
+                              {displayPrice}
+                            </p>
+
+                            <button 
+                              onClick={() => { setSelectedHotel(item); navigateTo('details'); }}
+                              className="w-full sm:w-auto px-8 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition hover:brightness-110 shadow-md"
+                              style={{ backgroundColor: COLORS.cta, color: COLORS.lightText }}
+                            >
+                              Ver Quartos <ArrowRight size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+              })}
+            </div>
+          </div>
+        );
+      };
+
+      const DetailsView = () => {
+        const hotel = selectedHotel || HOTELS_DATA[0]; 
+        const finalPriceBrl = getFinalPriceBrl(hotel.price);
+        const displayPrice = formatCurrency(finalPriceBrl, currency);
+        const pointsEarned = getPointsEarned(finalPriceBrl);
+
+        return (
+          <div className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+            <button onClick={() => navigateTo('list')} className="mb-6 flex items-center gap-2 text-sm font-bold opacity-70 hover:opacity-100 transition">
+              <ArrowLeftRight size={16}/> Voltar aos resultados
+            </button>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 md:gap-4 mb-8 h-64 md:h-[450px]">
+              <div className="md:col-span-2 md:row-span-2 bg-cover bg-center rounded-2xl md:rounded-l-2xl md:rounded-r-none h-full" style={{ backgroundImage: `url(https://images.unsplash.com/photo-${hotel.image}?auto=format&fit=crop&q=80&w=1200)` }}></div>
+              <div className="bg-cover bg-center hidden md:block" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=800)' }}></div>
+              <div className="bg-cover bg-center rounded-tr-2xl hidden md:block" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800)' }}></div>
+              <div className="bg-cover bg-center hidden md:block" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1595576508898-0ad5c879a061?auto=format&fit=crop&q=80&w=800)' }}></div>
+              <div className="bg-cover bg-center rounded-br-2xl hidden md:block relative cursor-pointer" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&q=80&w=800)' }}>
+                <div className="absolute inset-0 bg-black/50 rounded-br-2xl flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">+12 Fotos</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-10">
+              <div className="lg:col-span-2">
+                <div className="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="bg-[#09247c] text-white text-xs px-2 py-1 rounded font-bold uppercase">Recomendado</span>
+                      <div className="flex text-yellow-400 gap-1">
+                        {[...Array(hotel.stars)].map((_, idx) => (
+                          <Star key={idx} size={14} fill="currentColor" />
+                        ))}
+                      </div>
+                    </div>
+                    <h1 className="text-3xl md:text-4xl font-bold mb-2">{hotel.name}</h1>
+                    <p className="text-sm opacity-70 flex items-center gap-1"><MapPin size={16} className="flex-shrink-0" /> {hotel.location}</p>
+                  </div>
+                </div>
+
+                <h3 className="text-2xl font-bold mb-6 border-t border-gray-200 pt-8">Escolha o seu quarto</h3>
+                
+                <div className="space-y-6">
+                  <div className="border rounded-2xl bg-white shadow-sm overflow-hidden flex flex-col md:flex-row border-l-8 hover:shadow-md transition" style={{ borderLeftColor: COLORS.primary }}>
+                    <div className="w-full md:w-64 h-48 md:h-auto bg-cover bg-center" style={{ backgroundImage: 'url(https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&q=80&w=600)' }}></div>
+                    <div className="p-5 md:p-6 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex justify-between items-start">
+                          <h4 className="text-xl font-bold mb-2 pr-4">Quarto King Deluxe com Vista Mar</h4>
+                          {(currency === 'BRL' || currency === 'USD') && (
+                            <span className="inline-flex items-center gap-1 bg-[#f5f8ff] text-[#09247c] px-2 py-1 rounded text-xs font-bold border border-[#e0e7ff] flex-shrink-0">
+                              <Coins size={12} /> +{pointsEarned.toLocaleString('pt-BR')} pts
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm opacity-70 mb-4 mt-2">
+                          <span>1 Cama King Size</span>
+                          <span className="hidden sm:inline">•</span>
+                          <span>45m²</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mt-6 border-t pt-4">
+                        <div className="mb-4 sm:mb-0">
+                          <span className="text-xs uppercase font-bold bg-[#8d7041] text-white px-2 py-1 rounded">Apenas 2 restantes</span>
+                        </div>
+                        <div className="text-left sm:text-right w-full sm:w-auto">
+                          {hasNomadExplorer && (currency === 'BRL' || currency === 'USD') && (
+                            <p className="text-sm text-gray-400 line-through font-bold">De {formatCurrency(hotel.price, currency)}</p>
+                          )}
+                          <p className="text-2xl md:text-3xl font-black" style={{ color: currency === 'PTS' ? COLORS.tertiary : COLORS.cta }}>
+                             {currency === 'PTS' && <Coins size={22} className="inline mr-1"/>} 
+                             {displayPrice}
+                          </p>
+                          <p className="text-xs opacity-60 mb-3 mt-1">Total para 3 noites (c/ taxas)</p>
+                          <button 
+                            onClick={() => navigateTo('review', 1000)}
+                            className="w-full sm:w-auto px-8 py-3 md:py-3 rounded-xl font-bold transition shadow-md hover:-translate-y-0.5"
+                            style={{ backgroundColor: COLORS.cta, color: COLORS.lightText }}
+                          >
+                            Reservar Quarto
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <aside className="relative mt-8 lg:mt-0">
+                <div className="lg:sticky lg:top-28 bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden">
+                  <div className="bg-[#09247c] text-white p-5 md:p-6">
+                    <h4 className="font-bold text-xl mb-1">Resumo da sua pesquisa</h4>
+                  </div>
+                  <div className="p-5 md:p-6 space-y-4">
+                    <div className="flex justify-between items-center border-b pb-4">
+                      <div className="flex flex-col">
+                        <span className="text-xs uppercase font-bold opacity-60">Check-in</span>
+                        <span className="font-black text-lg">12 Out</span>
+                      </div>
+                      <div className="h-10 w-px bg-gray-200"></div>
+                      <div className="flex flex-col items-end">
+                        <span className="text-xs uppercase font-bold opacity-60">Check-out</span>
+                        <span className="font-black text-lg">15 Out</span>
+                      </div>
+                    </div>
+                    <button onClick={() => navigateTo('home')} className="w-full py-3 mt-4 border border-gray-300 rounded-xl font-bold text-sm hover:bg-gray-50 transition">
+                      Alterar pesquisa
+                    </button>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        );
+      };
+
+      const ReviewView = () => {
+        const hotel = selectedHotel || HOTELS_DATA[0];
+        const discountAmountBrl = hasNomadExplorer ? hotel.price * NOMAD_MULTIPLIERS.explorerDiscount : 0;
+        const finalPriceBrl = hotel.price - discountAmountBrl;
+        const feesBrl = finalPriceBrl * 0.15; 
+        const basePriceBrl = hotel.price;
+        
+        const pointsEarned = getPointsEarned(finalPriceBrl);
+
+        return (
+          <div className="max-w-2xl mx-auto px-4 py-12 md:py-16">
+            <div className="text-center mb-8 md:mb-10">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-50 text-[#09247c] mb-4">
+                <ShieldCheck size={32} />
+              </div>
+              <h1 className="text-2xl md:text-4xl font-black mb-3 text-[#30170a]">Confirmando sua tarifa...</h1>
+              <p className="text-base md:text-lg opacity-70">Garantindo o melhor valor com os benefícios da sua conta Nomad.</p>
+            </div>
+            
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 md:p-8 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-2" style={{ backgroundColor: COLORS.primary }}></div>
+              
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 pt-2">
+                <h2 className="text-xl md:text-2xl font-bold">Resumo e Preço Final</h2>
+                <span className="text-xs bg-green-100 text-green-800 px-3 py-1.5 rounded-full font-bold uppercase tracking-wide flex items-center gap-1">
+                  <CheckCircle size={14} /> Tarifa Validada
+                </span>
+              </div>
+              
+              <div className="space-y-4 mb-8">
+                <div className="flex justify-between items-center text-base md:text-lg">
+                  <span className="font-medium">Estadia (3 noites)</span>
+                  <span className="font-bold">{formatCurrency(basePriceBrl - feesBrl, currency)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm opacity-70">
+                  <span>Impostos e Taxas Incluídas</span>
+                  <span>{formatCurrency(feesBrl, currency)}</span>
+                </div>
+                
+                {hasNomadExplorer && (
+                  <div className="flex justify-between items-center text-sm font-bold text-green-600 bg-green-50 p-2 rounded-lg">
+                    <span className="flex items-center gap-2"><Star size={14}/> Desconto Nomad Explorer</span>
+                    <span>- {formatCurrency(discountAmountBrl, currency)}</span>
+                  </div>
+                )}
+                
+                <div className="flex justify-between items-end pt-4 border-t border-dashed">
+                  <div>
+                    <span className="text-sm font-bold uppercase opacity-60 block mb-1">Total a pagar</span>
+                    <span className="text-gray-500 text-xs">Inclui todas as taxas</span>
+                  </div>
+                  <span className="text-3xl md:text-4xl font-black flex items-center gap-2" style={{ color: currency === 'PTS' ? COLORS.tertiary : COLORS.cta }}>
+                    {currency === 'PTS' && <Coins size={28}/>}
+                    {formatCurrency(finalPriceBrl, currency)}
+                  </span>
+                </div>
+              </div>
+
+              {(currency === 'BRL' || currency === 'USD') && (
+                <div className="mb-8 p-4 bg-[#f5f8ff] border border-[#e0e7ff] rounded-xl flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-[#09247c]">Acúmulo de Pontos Nomad</p>
+                  </div>
+                  <span className="text-lg font-black text-[#09247c] flex items-center gap-1.5"><Coins size={18}/> +{pointsEarned.toLocaleString('pt-BR')}</span>
+                </div>
+              )}
+
+              <button 
+                onClick={() => navigateTo('checkout')}
+                className="w-full py-4 rounded-xl font-black text-lg md:text-xl flex items-center justify-center gap-3 transition hover:scale-[1.02] shadow-lg"
+                style={{ backgroundColor: COLORS.cta, color: COLORS.lightText }}
+              >
+                Avançar para Pagamento <ArrowRight />
+              </button>
+            </div>
+          </div>
+        );
+      };
+
+      const FareFamiliesView = () => {
+        if(!selectedFlight) return null;
+        
+        const basePriceBrl = getFinalPriceBrl(selectedFlight.price);
+        const flexPriceBrl = basePriceBrl + 400; // Plus 400 BRL for Flex
+
+        const selectFare = (fareType) => {
+          setSelectedFare(fareType);
+          navigateTo('ancillaries');
+        };
+
+        return (
+          <div className="max-w-5xl mx-auto px-4 py-10">
+             <button onClick={() => navigateTo('list')} className="mb-8 flex items-center gap-2 font-bold text-[#09247c]"><ArrowLeftRight size={16}/> Voltar aos voos</button>
+             <h2 className="text-3xl font-black mb-2 text-[#30170a]">Escolha a melhor tarifa para você</h2>
+             <p className="text-gray-500 mb-10">Selecione a franquia de bagagem e benefícios que atendem à sua viagem.</p>
+             
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* TARIFA LIGHT */}
+                <div className="border-2 border-gray-200 rounded-2xl p-6 bg-white flex flex-col hover:border-[#09247c]/50 transition-colors">
+                  <h3 className="text-2xl font-black mb-1">Light</h3>
+                  <p className="text-sm text-gray-500 mb-6">Para quem viaja leve e com flexibilidade reduzida.</p>
+                  
+                  <div className="space-y-4 mb-8 flex-grow">
+                    <div className="flex items-center gap-3 text-sm font-bold opacity-50"><Luggage size={18}/> Sem bagagem despachada</div>
+                    <div className="flex items-center gap-3 text-sm font-bold opacity-50"><Armchair size={18}/> Assento aleatório</div>
+                    <div className="flex items-center gap-3 text-sm font-bold text-[#30170a]"><Briefcase size={18}/> 1 Bagagem de mão (10kg)</div>
+                  </div>
+
+                  <div className="mt-auto border-t pt-6">
+                    <p className="text-3xl font-black mb-4 text-[#09247c]">{formatCurrency(basePriceBrl, currency)}</p>
+                    <button onClick={() => selectFare('light')} className="w-full py-4 rounded-xl font-bold border-2 border-[#09247c] text-[#09247c] hover:bg-gray-50 transition">
+                      Selecionar Light
+                    </button>
+                  </div>
+                </div>
+
+                {/* TARIFA FLEX */}
+                <div className="border-2 border-[#09247c] rounded-2xl p-6 bg-[#f5f8ff] flex flex-col shadow-lg relative overflow-hidden">
+                  <div className="absolute top-0 right-0 bg-[#09247c] text-white px-4 py-1 rounded-bl-xl text-xs font-bold uppercase tracking-wider">Mais Recomendada</div>
+                  <h3 className="text-2xl font-black mb-1 text-[#09247c]">Flex</h3>
+                  <p className="text-sm text-gray-600 mb-6">Conforto total e marcação de assento grátis.</p>
+                  
+                  <div className="space-y-4 mb-8 flex-grow">
+                    <div className="flex items-center gap-3 text-sm font-bold text-green-700"><Luggage size={18}/> 1 Bagagem despachada (23kg)</div>
+                    <div className="flex items-center gap-3 text-sm font-bold text-green-700"><Armchair size={18}/> Marcação de assento padrão grátis</div>
+                    <div className="flex items-center gap-3 text-sm font-bold text-[#30170a]"><Briefcase size={18}/> 1 Bagagem de mão (10kg)</div>
+                    <div className="flex items-center gap-3 text-sm font-bold text-[#30170a]"><ArrowLeftRight size={18}/> Reembolso com taxa reduzida</div>
+                  </div>
+
+                  <div className="mt-auto border-t border-[#09247c]/20 pt-6">
+                    <p className="text-3xl font-black mb-4 text-[#8d7041]">{formatCurrency(flexPriceBrl, currency)}</p>
+                    <button onClick={() => selectFare('flex')} className="w-full py-4 rounded-xl font-bold text-white shadow-md transition hover:scale-[1.02]" style={{ backgroundColor: COLORS.cta }}>
+                      Selecionar Flex
+                    </button>
+                  </div>
+                </div>
+             </div>
+          </div>
+        );
+      };
+
+      const AncillariesView = () => {
+        const [localShowSeatMap, setLocalShowSeatMap] = useState(false);
+        const totalPax = adults + childrenCount;
+
+        return (
+          <div className="max-w-4xl mx-auto px-4 py-10 relative">
+            <h2 className="text-3xl font-black mb-2 text-[#30170a]">Personalize seu voo</h2>
+            <p className="text-gray-500 mb-8">Adicione os serviços essenciais para uma viagem tranquila.</p>
+            
+            <div className="space-y-6 mb-10">
+              
+              {/* BAGAGEM EXTRA */}
+              <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+                <div className="flex gap-4 items-center">
+                  <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-[#09247c]"><Luggage size={24}/></div>
+                  <div>
+                    <h3 className="font-bold text-lg text-[#30170a]">Bagagem Extra (23kg)</h3>
+                    <p className="text-sm text-gray-500">Adicione malas para os passageiros. <br className="md:hidden"/> <span className="font-bold text-green-600">{formatCurrency(250, currency)} por mala</span></p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 bg-gray-100 p-2 rounded-xl border border-gray-200">
+                  <button onClick={() => setExtraBags(Math.max(0, extraBags - 1))} className="w-10 h-10 bg-white rounded-lg shadow-sm font-black text-xl text-[#09247c]">-</button>
+                  <span className="font-black text-xl w-6 text-center">{extraBags}</span>
+                  <button onClick={() => setExtraBags(extraBags + 1)} className="w-10 h-10 bg-white rounded-lg shadow-sm font-black text-xl text-[#09247c]">+</button>
+                </div>
+              </div>
+
+              {/* ASSENTOS */}
+              <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+                <div className="flex gap-4 items-center">
+                  <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-[#09247c]"><Armchair size={24}/></div>
+                  <div>
+                    <h3 className="font-bold text-lg text-[#30170a]">Mapa de Assentos</h3>
+                    <p className="text-sm text-gray-500">Viaje junto da sua família. Selecione agora.</p>
+                  </div>
+                </div>
+                <button onClick={() => setLocalShowSeatMap(true)} className="px-6 py-3 border-2 border-[#09247c] text-[#09247c] rounded-xl font-bold hover:bg-[#f5f8ff] transition w-full md:w-auto">
+                  Escolher Assentos
+                </button>
+              </div>
+
+            </div>
+
+            <div className="flex justify-end border-t pt-8">
+               <button onClick={() => navigateTo('checkout')} className="px-10 py-4 rounded-xl font-black text-xl text-white shadow-lg transition hover:scale-105 flex items-center gap-2" style={{ backgroundColor: COLORS.cta }}>
+                 Ir para Pagamento <ArrowRight />
+               </button>
+            </div>
+
+            {/* MODAL SEAT MAP SIMPLES */}
+            {localShowSeatMap && (
+              <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                 <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
+                   <div className="bg-[#09247c] p-4 flex justify-between items-center text-white">
+                      <h3 className="font-bold">Escolha {totalPax} assento(s)</h3>
+                      <button onClick={()=>setLocalShowSeatMap(false)}><X size={20}/></button>
+                   </div>
+                   <div className="p-8 bg-gray-100 flex flex-col items-center max-h-[60vh] overflow-y-auto">
+                     <div className="bg-white p-6 rounded-[40px] shadow-sm border border-gray-200 pb-10">
+                       <div className="w-16 h-16 bg-gray-200 rounded-t-full mx-auto mb-8 opacity-50"></div>
+                       <div className="seat-grid">
+                         {Array.from({length: 30}).map((_, i) => {
+                           const isAisle = i % 7 === 3;
+                           if(isAisle) return <div key={i} className="seat-aisle"></div>;
+                           return <div key={i} className="w-8 h-8 rounded-md bg-blue-100 border border-blue-300 hover:bg-[#ffce00] cursor-pointer transition"></div>
+                         })}
+                       </div>
+                     </div>
+                   </div>
+                   <div className="p-4 bg-white border-t text-center">
+                     <button onClick={()=>setLocalShowSeatMap(false)} className="w-full py-3 rounded-xl font-bold text-white bg-[#09247c]">Confirmar Assentos</button>
+                   </div>
+                 </div>
+              </div>
+            )}
+          </div>
+        );
+      };
+
+      const CheckoutView = () => {
+        // Lógica de cálculo compartilhada:
+        let subtotalBrl = 0;
+        let pointsEarned = 0;
+        let finalTotalBrl = 0;
+        const totalPax = adults + childrenCount;
+
+        const [paymentMethod, setPaymentMethod] = useState(currency === 'PTS' ? 'points' : (vertical === 'hotels' ? 'nomad_debit' : 'credit_card'));
+        const [coupon, setCoupon] = useState('');
+        const [couponApplied, setCouponApplied] = useState(false);
+        const [formData, setFormData] = useState({ name: '', surname: '', doc: '', email: '' });
+
+        if (vertical === 'flights') {
+          const flightBase = getFinalPriceBrl(selectedFlight?.price || 1000);
+          const fareMod = selectedFare === 'flex' ? 400 : 0;
+          const bagsCost = extraBags * 250;
+          subtotalBrl = (flightBase + fareMod) * totalPax + bagsCost;
+        } else {
+          // Hotels logic: getFinalPriceBrl already handles the Explorer Discount base.
+          const hotel = selectedHotel || HOTELS_DATA[0];
+          subtotalBrl = getFinalPriceBrl(hotel.price); 
+        }
+
+        // Apply CCBR Discount logic (5% off if paying in BRL via Credit Card)
+        const isCCBR = paymentMethod === 'credit_card' && currency === 'BRL';
+        const ccbrDiscountVal = isCCBR ? subtotalBrl * NOMAD_MULTIPLIERS.ccbrDiscount : 0;
+        
+        // Coupon Logic (10%)
+        const couponDiscountVal = couponApplied ? subtotalBrl * 0.10 : 0;
+
+        finalTotalBrl = subtotalBrl - ccbrDiscountVal - couponDiscountVal;
+        pointsEarned = getPointsEarned(finalTotalBrl);
+
+        const getCheckoutDisplayPrice = () => {
+          if (paymentMethod === 'points') return formatCurrency(finalTotalBrl, 'PTS');
+          if (paymentMethod === 'nomad_debit') return formatCurrency(finalTotalBrl, 'USD');
+          return formatCurrency(finalTotalBrl, 'BRL');
+        };
+
+        const handleAutofill = () => {
+          setFormData({ name: 'João', surname: 'Silva', doc: '123.456.789-00', email: 'joao.silva@exemplo.com.br' });
+        };
+
+        return (
+          <div className="max-w-7xl mx-auto px-4 py-8 md:py-12 grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
+            <div className="lg:col-span-8 space-y-8 md:space-y-10 order-2 lg:order-1">
+              
+              {/* Formulário do Cliente (Dinâmico para Voo/Hotel) */}
+              <section className="bg-white p-5 md:p-8 rounded-2xl border shadow-sm">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pb-4 border-b gap-4">
+                  <h2 className="text-xl md:text-2xl font-bold flex items-center gap-3">
+                    <span className="w-8 h-8 rounded-full flex items-center justify-center text-sm text-[#30170a] font-black flex-shrink-0" style={{ backgroundColor: COLORS.primary }}>1</span>
+                    {vertical === 'flights' ? 'Passageiro Responsável' : 'Dados do Hóspede'}
+                  </h2>
+                  <button onClick={handleAutofill} className="text-sm font-bold bg-blue-50 text-[#09247c] px-4 py-2 rounded-lg hover:bg-blue-100 transition">
+                    Preencher Automático
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-1 opacity-70">Nome *</label>
+                    <input type="text" value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[#09247c] outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-1 opacity-70">Sobrenome *</label>
+                    <input type="text" value={formData.surname} onChange={e=>setFormData({...formData, surname: e.target.value})} className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[#09247c] outline-none" />
+                  </div>
+                  
+                  {vertical === 'flights' ? (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-bold mb-1 opacity-70">Documento (CPF ou Passaporte) *</label>
+                      <input type="text" value={formData.doc} onChange={e=>setFormData({...formData, doc: e.target.value})} className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[#09247c] outline-none" />
+                    </div>
+                  ) : (
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-bold mb-1 opacity-70">E-mail *</label>
+                      <input type="email" value={formData.email} onChange={e=>setFormData({...formData, email: e.target.value})} className="w-full border p-3 rounded-xl focus:ring-2 focus:ring-[#09247c] outline-none" />
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="bg-white p-5 md:p-8 rounded-2xl border shadow-sm">
+                <h2 className="text-xl md:text-2xl font-bold flex items-center gap-3 mb-6 pb-4 border-b">
+                  <span className="w-8 h-8 rounded-full flex items-center justify-center text-sm text-[#30170a] font-black flex-shrink-0" style={{ backgroundColor: COLORS.primary }}>2</span>
+                  Opções de Pagamento
+                </h2>
+                
+                {/* PAYMENT SELECTORS V2.3/2.4 */}
+                <div className={`grid grid-cols-2 ${vertical === 'hotels' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3 mb-8`}>
+                  {/* Nomad Debit - Apenas para Hotéis (Como em V2.2/V2.3) */}
+                  {vertical === 'hotels' && (
+                    <div onClick={() => setPaymentMethod('nomad_debit')} className={`p-3 border-2 rounded-xl flex flex-col gap-1 items-center justify-center text-center cursor-pointer transition relative ${paymentMethod === 'nomad_debit' ? 'border-[#09247c] bg-[#f5f8ff] shadow-sm' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-max bg-green-500 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">Sem Spread</div>
+                      <Globe color={paymentMethod === 'nomad_debit' ? COLORS.tertiary : 'gray'} size={24} className="mb-1" />
+                      <span className={`font-bold text-xs md:text-sm leading-tight ${paymentMethod === 'nomad_debit' ? 'text-[#09247c]' : 'text-gray-600'}`}>Débito<br/>Nomad</span>
+                    </div>
+                  )}
+
+                  {/* PIX - Apenas Voos ou Opcional, mantemos para ambos */}
+                  <div onClick={() => setPaymentMethod('pix')} className={`p-3 border-2 rounded-xl flex flex-col gap-1 items-center justify-center text-center cursor-pointer transition ${paymentMethod === 'pix' ? 'border-[#09247c] bg-[#f5f8ff] shadow-sm' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <QrCode color={paymentMethod === 'pix' ? COLORS.tertiary : 'gray'} size={24} className="mb-1" />
+                    <span className={`font-bold text-xs md:text-sm leading-tight ${paymentMethod === 'pix' ? 'text-[#09247c]' : 'text-gray-600'}`}>PIX<br/>Imediato</span>
+                  </div>
+
+                  {/* Credit Card Nacional */}
+                  <div onClick={() => setPaymentMethod('credit_card')} className={`p-3 border-2 rounded-xl flex flex-col gap-1 items-center justify-center text-center cursor-pointer transition relative ${paymentMethod === 'credit_card' ? 'border-[#09247c] bg-[#f5f8ff] shadow-sm' : 'border-gray-200 hover:border-gray-300'}`}>
+                    {currency === 'BRL' && <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-max bg-[#ffce00] text-[#30170a] text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">-5% OFF</div>}
+                    <CreditCard color={paymentMethod === 'credit_card' ? COLORS.tertiary : 'gray'} size={24} className="mb-1" />
+                    <span className={`font-bold text-xs md:text-sm leading-tight ${paymentMethod === 'credit_card' ? 'text-[#09247c]' : 'text-gray-600'}`}>Cartão de<br/>Crédito</span>
+                  </div>
+
+                  {/* Points */}
+                  <div onClick={() => setPaymentMethod('points')} className={`p-3 border-2 rounded-xl flex flex-col gap-1 items-center justify-center text-center cursor-pointer transition ${paymentMethod === 'points' ? 'border-[#09247c] bg-[#f5f8ff] shadow-sm' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <Coins color={paymentMethod === 'points' ? COLORS.tertiary : 'gray'} size={24} className="mb-1" />
+                    <span className={`font-bold text-xs md:text-sm leading-tight ${paymentMethod === 'points' ? 'text-[#09247c]' : 'text-gray-600'}`}>Usar<br/>Pontos</span>
+                  </div>
+                </div>
+
+                {/* CCBR Desconto Banner */}
+                {isCCBR && (
+                  <div className="mb-6 bg-gradient-to-r from-[#ffce00] to-yellow-300 p-3 rounded-lg flex items-center justify-center gap-2 shadow-sm text-[#30170a] font-bold text-sm">
+                    <Tag size={18} /> Desconto de 5% aplicado por pagar com Cartão de Crédito Nacional em Reais!
+                  </div>
+                )}
+
+                {/* Dinamyc Form Views */}
+                {paymentMethod === 'nomad_debit' && (
+                  <div className="bg-white p-6 md:p-8 rounded-xl border-2 border-[#09247c] bg-[#f5f8ff]/30 mb-6 text-center">
+                    <div className="w-16 h-16 bg-[#09247c] text-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-md"><Globe size={32} /></div>
+                    <h3 className="font-bold text-xl md:text-2xl text-[#09247c] mb-2">{vertical === 'hotels' ? 'Pague na Acomodação' : 'Pague na Moeda da Companhia'}</h3>
+                    <p className="text-sm text-[#30170a] mb-6 max-w-md mx-auto opacity-80 leading-relaxed">
+                      Sua reserva será garantida agora. Você pagará em USD utilizando o seu <strong>Cartão Global Nomad</strong>, sem spread cambial abusivo.
+                    </p>
+                    <div className="bg-white p-4 rounded-xl inline-block border border-[#09247c]/20 shadow-sm">
+                      <span className="text-xs uppercase font-bold text-gray-500 block mb-1">Total em USD</span>
+                      <span className="text-3xl font-black text-[#09247c]">{formatCurrency(finalTotalBrl, 'USD')}</span>
+                    </div>
+                  </div>
+                )}
+
+                {paymentMethod === 'pix' && (
+                  <div className="bg-gray-50 p-6 md:p-8 rounded-xl border mb-6 text-center">
+                    <div className="w-16 h-16 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto mb-4"><QrCode size={32} /></div>
+                    <h3 className="font-bold text-xl md:text-2xl text-[#30170a] mb-2">Pagamento via PIX</h3>
+                    <p className="text-sm text-gray-500 mb-6 max-w-sm mx-auto">O QR Code de pagamento será gerado na próxima tela para garantir a confirmação imediata da sua reserva.</p>
+                  </div>
+                )}
+
+                {paymentMethod === 'credit_card' && (
+                  <div className="space-y-4 md:space-y-5 bg-white p-4 md:p-6 rounded-xl border border-gray-200 bg-gray-50 mb-6">
+                    <div>
+                      <label className="block text-xs font-bold uppercase mb-1 opacity-70">Número do Cartão</label>
+                      <input type="text" placeholder="0000 0000 0000 0000" className="w-full border p-3 rounded-xl outline-none focus:border-[#09247c] font-mono" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><label className="block text-xs font-bold uppercase mb-1 opacity-70">Validade</label><input type="text" placeholder="MM/AA" className="w-full border p-3 rounded-xl outline-none focus:border-[#09247c] font-mono text-center" /></div>
+                      <div><label className="block text-xs font-bold uppercase mb-1 opacity-70">CVV</label><input type="text" placeholder="***" className="w-full border p-3 rounded-xl outline-none focus:border-[#09247c] font-mono text-center" /></div>
+                    </div>
+                    <div className="pt-4 border-t">
+                      <label className="block text-xs font-bold uppercase mb-2 opacity-70">Parcelamento</label>
+                      <select className="w-full border p-4 rounded-xl font-bold bg-white outline-none">
+                        <option>À vista - {formatCurrency(finalTotalBrl, 'BRL')}</option>
+                        <option>3x sem juros de {formatCurrency(finalTotalBrl/3, 'BRL')}</option>
+                        <option>6x sem juros de {formatCurrency(finalTotalBrl/6, 'BRL')}</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {paymentMethod === 'points' && (
+                  <div className="bg-[#f5f8ff] border border-[#e0e7ff] p-6 rounded-xl mb-6 text-center">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-gray-100 text-[#09247c]"><Coins size={32} /></div>
+                    <h3 className="font-bold text-lg text-[#09247c] mb-1">Usar Pontos Nomad</h3>
+                    <p className="text-sm text-gray-600 mb-6">Saldo suficiente verificado.</p>
+                    <div className="bg-white p-4 rounded-lg inline-block border"><span className="text-xs uppercase font-bold text-gray-400 block mb-1">Débito em Pontos</span><span className="text-3xl font-black text-[#09247c]">{formatCurrency(finalTotalBrl, 'PTS')}</span></div>
+                  </div>
+                )}
+
+                {/* Cupom de Desconto */}
+                <div className="mb-6 flex gap-2 border-t pt-6 border-dashed">
+                  <div className="relative flex-grow">
+                     <Tag size={16} className="absolute left-3 top-3.5 text-gray-400" />
+                     <input type="text" placeholder="Tem cupom de desconto?" value={coupon} onChange={e=>setCoupon(e.target.value)} disabled={couponApplied} className="w-full border p-3 pl-10 rounded-xl outline-none focus:border-[#09247c] uppercase font-bold" />
+                  </div>
+                  <button onClick={() => setCouponApplied(true)} disabled={!coupon || couponApplied} className="px-6 py-3 bg-[#30170a] text-white rounded-xl font-bold disabled:opacity-50">Aplicar</button>
+                </div>
+
+                <button onClick={() => navigateTo('success', 1500)} className="w-full py-5 rounded-xl font-black text-xl md:text-2xl transition hover:brightness-110 shadow-lg flex justify-center items-center gap-2" style={{ backgroundColor: COLORS.cta, color: COLORS.lightText }}>
+                  <ShieldCheck /> {vertical === 'flights' ? 'Emitir Passagem' : 'Finalizar Reserva'}
+                </button>
+              </section>
+            </div>
+
+            {/* SIDEBAR SUMMARY (Dinâmico para Voo/Hotel) */}
+            <div className="lg:col-span-4 order-1 lg:order-2">
+              
+              {vertical === 'flights' ? (
+                /* FLIGHT SUMMARY */
+                <div className="lg:sticky lg:top-28 bg-[#09247c] border border-gray-200 rounded-2xl shadow-xl overflow-hidden text-white">
+                  <div className="p-6">
+                    <h3 className="font-black text-xl mb-6 flex items-center gap-2"><Plane/> Seu Voo {tripType==='round_trip'?'Ida e Volta':'Só Ida'}</h3>
+                    
+                    <div className="bg-white/10 rounded-xl p-4 mb-4 backdrop-blur-sm">
+                      <p className="font-bold text-lg mb-1">{flightOrigin.split('-')[0].trim()} <ArrowLeftRight size={14} className="inline mx-1 opacity-70"/> {flightDest.split('-')[0].trim()}</p>
+                      <p className="text-xs opacity-80">{selectedFlight?.airline} • {selectedFlight?.flightNum}</p>
+                    </div>
+                    
+                    <div className="space-y-3 mb-6">
+                      <div className="flex justify-between text-sm border-b border-white/20 pb-2">
+                        <span className="opacity-70">Passageiros</span>
+                        <span className="font-bold">{totalPax}x ({flightClass === 'business'?'Executiva':'Econômica'})</span>
+                      </div>
+                      <div className="flex justify-between text-sm border-b border-white/20 pb-2">
+                        <span className="opacity-70">Tarifa Escolhida</span>
+                        <span className="font-bold capitalize">{selectedFare || 'Light'}</span>
+                      </div>
+                      <div className="flex justify-between text-sm border-b border-white/20 pb-2">
+                        <span className="opacity-70">Bagagens Extra</span>
+                        <span className="font-bold">{extraBags} mala(s)</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-white text-[#30170a] p-5 rounded-xl mt-4">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-bold">Total a pagar</span>
+                      </div>
+                      <div className="text-3xl font-black text-[#09247c] mb-2">{getCheckoutDisplayPrice()}</div>
+                      
+                      {couponApplied && <div className="text-xs text-green-600 font-bold bg-green-50 p-1.5 rounded text-center mb-2">-10% Cupom Aplicado</div>}
+                      {isCCBR && <div className="text-xs text-[#8d7041] font-bold bg-[#ffce00]/20 p-1.5 rounded text-center mb-2">-5% Desconto CC Nacional</div>}
+
+                      {(paymentMethod === 'credit_card' || paymentMethod === 'nomad_debit') && (
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-gray-500 justify-center mt-3 pt-3 border-t">
+                          <Coins size={14} /> +{pointsEarned.toLocaleString('pt-BR')} pontos Nomad
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* HOTEL SUMMARY (from V2.2) */
+                <div className="lg:sticky lg:top-28 bg-white border border-gray-200 rounded-2xl p-5 md:p-6 shadow-lg">
+                  <h3 className="font-black text-lg md:text-xl mb-4 border-b pb-4">Detalhes da sua Reserva</h3>
+                  
+                  <div className="flex gap-4 mb-6">
+                    <div className="w-20 h-20 md:w-24 md:h-24 rounded-xl bg-cover bg-center flex-shrink-0" style={{ backgroundImage: `url(https://images.unsplash.com/photo-${selectedHotel?.image || HOTELS_DATA[0].image}?auto=format&fit=crop&q=80&w=200)` }}></div>
+                    <div>
+                      <h4 className="font-bold text-base md:text-lg leading-tight mb-1">{selectedHotel?.name || HOTELS_DATA[0].name}</h4>
+                      <p className="text-xs opacity-60 mt-1">{selectedHotel?.location || HOTELS_DATA[0].location}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-50 p-4 rounded-xl space-y-3 mb-6">
+                    <div className="flex justify-between text-sm">
+                      <span className="opacity-70 font-bold">Check-in</span>
+                      <span className="font-black text-[#09247c]">12 Out 2026</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="opacity-70 font-bold">Check-out</span>
+                      <span className="font-black text-[#09247c]">15 Out 2026</span>
+                    </div>
+                  </div>
+                  
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between items-center mb-4 text-sm md:text-base">
+                      <span className="opacity-70">Taxas e Serviços</span>
+                      <span className="font-medium">Incluso</span>
+                    </div>
+                    <div className="flex justify-between items-center p-4 bg-gray-100 rounded-xl mb-3">
+                      <span className="text-base md:text-lg font-bold text-[#30170a]">Total</span>
+                      <span className="text-xl md:text-2xl font-black text-[#09247c]">
+                        {getCheckoutDisplayPrice()}
+                      </span>
+                    </div>
+
+                    {couponApplied && <div className="text-xs text-green-600 font-bold bg-green-50 p-1.5 rounded text-center mb-2">-10% Cupom Aplicado</div>}
+                    {isCCBR && <div className="text-xs text-[#8d7041] font-bold bg-[#ffce00]/20 p-1.5 rounded text-center mb-2">-5% Desconto CC Nacional</div>}
+
+                    {(paymentMethod === 'credit_card' || paymentMethod === 'nomad_debit') && (
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-gray-500 justify-center mt-3 pt-3 border-t">
+                        <Coins size={14} /> +{pointsEarned.toLocaleString('pt-BR')} pontos Nomad
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        );
+      };
+
+      const SuccessView = () => (
+        <div className="max-w-3xl mx-auto px-4 py-16 md:py-20 text-center">
+          <div className="w-20 h-20 md:w-24 md:h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 md:mb-8 animate-bounce shadow-lg shadow-green-100">
+            <CheckCircle size={48} />
+          </div>
+          <h1 className="text-3xl md:text-5xl font-black mb-4 text-[#30170a]">{vertical === 'flights' ? 'Viagem Garantida!' : 'Reserva Confirmada!'}</h1>
+          <p className="text-lg md:text-xl opacity-70 mb-8 md:mb-10">{vertical === 'flights' ? 'Os bilhetes eletrônicos foram enviados para o seu e-mail.' : 'Tudo pronto para a sua viagem. Enviamos o voucher para o seu e-mail.'}</p>
+          
+          <div className="bg-white p-6 md:p-12 rounded-3xl border shadow-xl relative overflow-hidden mb-10 md:mb-12">
+            <div className="absolute top-0 left-0 w-full h-3" style={{ backgroundColor: COLORS.primary }}></div>
+            <p className="text-xs md:text-sm uppercase font-bold opacity-50 mb-3 tracking-wider">Localizador ({vertical === 'flights' ? 'PNR' : 'Reserva'})</p>
+            <p className={`text-4xl md:text-6xl font-mono font-black tracking-widest py-4 md:py-6 rounded-xl border-2 ${vertical === 'flights' ? 'bg-[#f5f8ff] text-[#09247c] border-[#09247c]/30 border-dashed' : 'bg-gray-50 text-gray-800 border-gray-300 border-dashed'}`}>
+              {vertical === 'flights' ? 'NM23XR' : 'BR-9824X'}
+            </p>
+            <p className="text-xs md:text-sm opacity-60 mt-4 md:mt-6">{vertical === 'flights' ? 'Apresente este código no balcão ou check-in online.' : 'Mostre o documento na recepção do hotel.'}</p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <button onClick={() => navigateTo('my-bookings')} className="w-full sm:w-auto px-8 py-4 rounded-xl font-bold transition shadow-md" style={{ backgroundColor: COLORS.tertiary, color: COLORS.lightText }}>Gerenciar {vertical === 'flights' ? 'Voo' : 'Reserva'}</button>
+            <button onClick={() => navigateTo('home')} className="w-full sm:w-auto px-8 py-4 rounded-xl font-bold transition bg-white border-2" style={{ borderColor: COLORS.cta, color: COLORS.cta }}>Voltar ao Início</button>
+          </div>
+        </div>
+      );
+
+      const MyBookingsView = () => (
+        <div className="h-[calc(100vh-80px)] w-full bg-gray-100 relative">
+          <button onClick={() => navigateTo('home')} className="absolute top-4 left-4 z-10 bg-white px-4 py-2 rounded-lg shadow-md flex items-center gap-2 font-bold text-sm hover:bg-gray-50 text-[#09247c]">
+            <ArrowLeftRight size={16} /> Voltar à Loja
+          </button>
+          <iframe src="https://vinicius-oliveira-nvvbd.nuitee.link/manage-bookings?language=pt&currency=BRL&from=Lz9sYW5ndWFnZT1wdCZjdXJyZW5jeT1CUkw=" className="w-full h-full border-none" title="Gerenciar Reservas" allowFullScreen />
+        </div>
+      );
+
+      return (
+        <Layout>
+          {view === 'home' && <HomeView />}
+          {view === 'list' && <ListView />}
+          {view === 'details' && <DetailsView />}
+          {view === 'fareFamilies' && <FareFamiliesView />}
+          {view === 'ancillaries' && <AncillariesView />}
+          {view === 'review' && <ReviewView />}
+          {view === 'checkout' && <CheckoutView />}
+          {view === 'success' && <SuccessView />}
+          {view === 'my-bookings' && <MyBookingsView />}
+          
+          {loading && (
+            <div className="fixed inset-0 bg-white/90 backdrop-blur-sm z-[100] flex flex-col items-center justify-center">
+              <div className="relative w-20 h-20 mb-4">
+                <div className="absolute inset-0 border-4 border-gray-200 rounded-full"></div>
+                <div className="absolute inset-0 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: COLORS.primary, borderTopColor: 'transparent' }}></div>
+              </div>
+              <p className="font-bold text-lg animate-pulse text-[#09247c]">Processando...</p>
+            </div>
+          )}
+        </Layout>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
